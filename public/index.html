@@ -68,6 +68,9 @@
     background:radial-gradient(circle at 40% 38%,#fff7d6,#ffd45a 55%,#ff9d3c 100%);
     box-shadow:0 0 60px 20px rgba(255,190,80,.32), inset -8px -8px 0 rgba(180,90,0,.12);}
   .hills{position:fixed;left:0;right:0;bottom:0;z-index:-2;width:100%;height:26vh;display:block}
+  /* keeps light hero/footer text readable when the sky brightens by day */
+  .skyscrim{position:fixed;left:0;right:0;top:0;height:60vh;z-index:-1;pointer-events:none;
+    background:radial-gradient(130% 80% at 50% -12%,rgba(6,7,20,.62),rgba(6,7,20,.28) 42%,transparent 68%)}
   @keyframes twinkle{0%,100%{opacity:.55}50%{opacity:.95}}
 
   .wrap{max-width:1080px;margin:0 auto;padding:26px 18px 60px}
@@ -83,8 +86,9 @@
     box-shadow:inset 2px 2px 0 rgba(255,255,255,.10), inset -3px -3px 0 rgba(0,0,0,.34), 0 10px 26px rgba(0,0,0,.42);
   }
   .panel-title{display:flex;align-items:center;gap:9px;margin:0 0 14px;font-size:.92rem}
-  .panel-title .dot{width:9px;height:9px;border-radius:2px;transform:rotate(45deg);
-    box-shadow:0 0 8px currentColor}
+  .panel-title .sec-ic{width:1.15em;height:1.15em;flex:none;display:inline-grid;place-items:center;
+    filter:drop-shadow(0 0 5px currentColor) drop-shadow(1px 1px 0 rgba(0,0,0,.7))}
+  .panel-title .sec-ic svg{width:100%;height:100%;fill:currentColor;display:block}
 
   /* ---- hero sign ---- */
   .hero{margin:12px 0 26px;text-align:center}
@@ -280,13 +284,18 @@
   .m-note b{color:var(--white)}
   .m-note a{color:var(--cyan)}
 
-  /* ---- character portraits (deterministic per name) ---- */
-  .ritem .av{width:30px;height:30px;overflow:hidden;padding:0;background:none;image-rendering:pixelated}
-  .ritem .av svg{width:100%;height:100%;display:block}
+  /* ---- player emblem avatars (a Terraria item sprite per name, framed like a slot) ---- */
+  .ritem .av{width:32px;height:32px;overflow:hidden;padding:0;border-radius:6px;image-rendering:pixelated;
+    background:radial-gradient(circle at 50% 38%,rgba(255,255,255,.08),rgba(0,0,0,.28));
+    border:1px solid rgba(255,255,255,.14);box-shadow:inset 1px 1px 0 rgba(255,255,255,.08)}
+  .ritem .av svg,.m-av svg{width:100%;height:100%;display:block}
+  .av-img{width:100%;height:100%;object-fit:contain;padding:4px;image-rendering:pixelated;display:block}
   .ritem.is-dead .av{filter:grayscale(.75) brightness(.6)}
   .ritem .rn .rdead{margin-left:6px;font-size:.85rem}
-  .m-av{background:none;padding:0;overflow:hidden;image-rendering:pixelated}
-  .m-av svg{width:100%;height:100%;display:block}
+  .m-av{overflow:hidden;padding:0;image-rendering:pixelated;
+    background:radial-gradient(circle at 50% 38%,rgba(255,255,255,.08),rgba(0,0,0,.3));
+    border:2px solid var(--panel-edge);box-shadow:inset 1px 1px 0 rgba(255,255,255,.08)}
+  .m-av .av-img{padding:7px}
 
   /* status / progression pills under the modal name */
   .m-badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
@@ -368,9 +377,10 @@
 <div class="stars" id="starsEl"></div>
 <div class="sun" id="sun" aria-hidden="true"></div>
 <div class="moon" id="moon"><span class="ph" id="moonPh"></span></div>
+<div class="skyscrim" aria-hidden="true"></div>
 <svg class="hills" viewBox="0 0 1440 300" preserveAspectRatio="none" aria-hidden="true">
-  <path d="M0,300 L0,190 C160,140 320,150 480,175 C650,202 760,120 960,140 C1130,157 1280,205 1440,175 L1440,300 Z" fill="#150f2c"/>
-  <path d="M0,300 L0,235 C220,205 380,250 620,238 C880,225 1040,270 1440,240 L1440,300 Z" fill="#0c0820"/>
+  <path id="hillFar" d="M0,300 L0,190 C160,140 320,150 480,175 C650,202 760,120 960,140 C1130,157 1280,205 1440,175 L1440,300 Z" fill="#150f2c"/>
+  <path id="hillNear" d="M0,300 L0,235 C220,205 380,250 620,238 C880,225 1040,270 1440,240 L1440,300 Z" fill="#0c0820"/>
 </svg>
 
 <!-- hidden defs: heart gradient -->
@@ -382,7 +392,7 @@
 
 <main class="wrap">
   <section class="hero">
-    <p class="eyebrow">Servidor Terraria · tModLoader 1.4</p>
+    <p class="eyebrow">Servidor Terraria 1.4 · tModLoader</p>
     <div class="brandline">
       <h1 class="brand">BOBAGI</h1>
       <span id="gem" class="status-gem is-loading"><span class="gem"></span><span id="gemText">carregando…</span></span>
@@ -413,12 +423,12 @@
     <!-- how to join (top) -->
     <div class="col-7">
       <section class="panel">
-        <h2 class="panel-title hud"><span class="dot" style="color:var(--yellow)"></span>Como entrar</h2>
+        <h2 class="panel-title hud"><span class="sec-ic" style="color:var(--yellow)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h9v2H6v14h7v2H4z"/><path d="M13 7l5 5-5 5v-3H9v-4h4z"/></svg></span>Como entrar</h2>
         <ol class="steps">
           <li><span class="st">Instale o <b>tModLoader</b> (grátis na Steam, dono do Terraria) — ou clique em <b>Abrir tModLoader</b> acima.</span></li>
           <li><span class="st">Abra <b>Workshop → Mod Browser</b> e assine os mods logo abaixo (ou deixe o servidor baixar no join).</span></li>
           <li><span class="st"><b>Deixe o tModLoader atualizar pela Steam</b> — a versão precisa bater com a do servidor.</span></li>
-          <li><span class="st">No menu, <b>Multiplayer → Join via IP</b>: digite <code id="stepAddr">bobagi.space</code>, porta <code>7777</code> e a <b>senha</b> (peça pro Gustavo).</span></li>
+          <li><span class="st">No menu, <b>Multiplayer → Join via IP</b>: digite <code id="stepAddr">bobagi.space</code>, porta <code>7777</code> e a <b>senha</b>.</span></li>
         </ol>
       </section>
     </div>
@@ -426,7 +436,7 @@
     <!-- world facts (top) -->
     <div class="col-5">
       <section class="panel">
-        <h2 class="panel-title hud"><span class="dot" style="color:var(--orange)"></span>O mundo</h2>
+        <h2 class="panel-title hud"><span class="sec-ic" style="color:var(--orange)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a6 6 0 0 1 2 11.7V22h-4v-8.3A6 6 0 0 1 12 2z"/></svg></span>O mundo</h2>
         <ul class="facts">
           <li><span class="fk">Nome</span><span class="fv">Bobagi</span></li>
           <li><span class="fk">Tamanho</span><span class="fv">Pequeno</span></li>
@@ -446,7 +456,7 @@
     <!-- players -->
     <div class="col-5">
       <section class="panel">
-        <h2 class="panel-title hud"><span class="dot" style="color:var(--green)"></span>Jogadores online</h2>
+        <h2 class="panel-title hud"><span class="sec-ic" style="color:var(--green)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21C5 16 3 12.5 3 8.9A4.9 4.9 0 0 1 12 6 4.9 4.9 0 0 1 21 8.9C21 12.5 19 16 12 21z"/></svg></span>Jogadores online</h2>
         <div style="display:flex;align-items:center;gap:16px;margin-bottom:6px">
           <div class="count-big"><span id="pCount">0</span><small>/<span id="pMax">8</span></small></div>
           <div class="hearts" id="hearts" aria-label="slots de jogadores"></div>
@@ -460,7 +470,7 @@
     <!-- vitals -->
     <div class="col-7">
       <section class="panel">
-        <h2 class="panel-title hud"><span class="dot" style="color:var(--cyan)"></span>Recursos do servidor</h2>
+        <h2 class="panel-title hud"><span class="sec-ic" style="color:var(--cyan)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h3v7H4zM10.5 8h3v12h-3zM17 4h3v16h-3z"/></svg></span>Recursos do servidor</h2>
         <div class="vital">
           <div class="top"><span class="name">Processador (CPU)</span><span class="val" id="cpuVal">—</span></div>
           <div class="bar"><div class="fill cpu" id="cpuFill"></div></div>
@@ -481,7 +491,7 @@
     <!-- mods -->
     <div class="col-12">
       <section class="panel">
-        <h2 class="panel-title hud"><span class="dot" style="color:var(--purple)"></span>Mods do servidor</h2>
+        <h2 class="panel-title hud"><span class="sec-ic" style="color:var(--purple)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l7 7-7 13-7-13z"/></svg></span>Mods do servidor</h2>
         <p class="note">Pra entrar você precisa dos <b>mesmos <span id="modCount">7</span> mods</b>. O servidor baixa sozinho no join, mas assinar na Workshop deixa mais rápido. Todos são só de conveniência — <b>nada muda o balanceamento</b>.</p>
         <div class="mods" id="mods"></div>
       </section>
@@ -581,6 +591,23 @@
       +'<rect x="12" y="12" width="2" height="3" fill="#20304a"/><rect x="18" y="12" width="2" height="3" fill="#20304a"/>'
       +'</svg>';
   }
+  // A curated spread of colorful, recognizable Terraria item sprites used as the
+  // per-player emblem avatar (leans on gems/pets/misc over weapons so it doesn't
+  // read as their held item). Deterministic by name; falls back to the drawn
+  // portrait if the sprite set isn't installed.
+  var AVATARS=[65,757,674,46,3065,494,112,1928,1244,180,181,182,184,999,1309,3018,2880,1256,1326,950,4952,267,3541,1178];
+  function avatarEl(name){
+    if(spritesOn.item){
+      var id=AVATARS[hashCode(name)%AVATARS.length];
+      var img=document.createElement('img');img.className='av-img';img.alt='';img.loading='lazy';
+      img.src='/sprites/item/'+id+'.png';
+      img.onerror=function(){var s=document.createElement('span');s.innerHTML=portraitSVG(name);
+        if(img.parentNode)img.parentNode.replaceChild(s.firstChild,img);};
+      return img;
+    }
+    var s=document.createElement('span');s.style.cssText='display:block;width:100%;height:100%';
+    s.innerHTML=portraitSVG(name);return s;
+  }
 
   // ---- item rarity + category glyphs ----
   function rarityColor(r){
@@ -676,7 +703,7 @@
     return f;
   }
   function fillModal(p){
-    $('mAv').innerHTML=portraitSVG(p.name);
+    var mav=$('mAv');mav.textContent='';mav.appendChild(avatarEl(p.name));
     $('mTitle').textContent=p.name;
     var sess=$('mSession');sess.textContent='';
     sess.appendChild(el('span','dotg'));
@@ -775,6 +802,10 @@
     ph.style.background=rgb(g[0]);
     $('skyEl').style.background='linear-gradient(180deg,'+rgb(g[0])+' 0%,'+rgb(g[1])+' 45%,'+rgb(g[2])+' 100%)';
     $('starsEl').style.opacity=isDay?'0':(h<5.2||h>19.8?'0.85':'0.5');
+    // the ground silhouette greens up in daylight, back to dark purple at night
+    var dl=isDay?(0.28+0.72*Math.sin(frac*Math.PI)):0;
+    $('hillFar').setAttribute('fill',rgb([lerp(21,55,dl),lerp(15,112,dl),lerp(44,62,dl)]));
+    $('hillNear').setAttribute('fill',rgb([lerp(12,30,dl),lerp(8,80,dl),lerp(32,44,dl)]));
   }
   function setSkyFromLive(live){
     if(!live||live.timeText==null){   // no live clock (server empty/frozen) → default dusk art
@@ -805,6 +836,9 @@
 
   function apply(d){
     lastUpdated=d.updatedAt;
+    // Detect the sprite set BEFORE rendering avatars/tiles (else the first paint
+    // falls back to glyphs/portraits for a frame).
+    if(d.server&&d.server.sprites){spritesOn.item=!!d.server.sprites.item;spritesOn.buff=!!d.server.sprites.buff;}
     // Seed the sky clock only on the FIRST poll that carries a live in-game time,
     // then let the client-side rAF tween run standalone. We deliberately do NOT
     // re-sync every 5 s — the server's minute-resolution time would snap the sun/
@@ -830,7 +864,7 @@
         var li=document.createElement('li');
         var dead=p.stats&&p.stats.dead;
         var btn=el('button','ritem'+(dead?' is-dead':''));btn.type='button';
-        var av=el('span','av');av.innerHTML=portraitSVG(p.name);btn.appendChild(av);
+        var av=el('span','av');av.appendChild(avatarEl(p.name));btn.appendChild(av);
         var rn=el('span','rn');rn.appendChild(document.createTextNode(p.name));
         if(dead)rn.appendChild(el('span','rdead','💀'));
         btn.appendChild(rn);
@@ -871,9 +905,6 @@
     else if(s.upToDate===false){badge.hidden=false;badge.className='vbadge stale';badge.textContent='⚠ desatualizada';
       warn.hidden=false;$('latestVer').textContent='v'+(s.latestVersion||'?');}
     else{badge.hidden=true;warn.hidden=true;}
-
-    // sprite availability (glyphs unless a decoded sprite set is present)
-    if(s.sprites){spritesOn.item=!!s.sprites.item;spritesOn.buff=!!s.sprites.buff;}
 
     // live world extras (day/night, progression, events) from the optional mod
     var wl=$('wlive');wl.textContent='';
