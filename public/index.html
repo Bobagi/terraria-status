@@ -3,8 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Servidor Bobagi · tModLoader</title>
-<meta name="description" content="Status ao vivo do servidor Terraria (tModLoader) Bobagi: jogadores online, consumo de CPU e RAM, mundo, mods e como entrar.">
+<title>Servidor Terraria tModLoader Bobagi — status ao vivo, jogadores online e como entrar</title>
+<meta name="description" content="Status ao vivo do servidor Terraria (tModLoader) Bobagi: quem está online, vida/inventário dos jogadores, CPU e RAM, versão do tModLoader, lista de mods e o passo a passo para entrar (bobagi.space:7777).">
+<meta name="keywords" content="servidor terraria, tmodloader, servidor modado, terraria multiplayer, jogadores online, status servidor terraria, como entrar servidor terraria, bobagi">
+<meta name="theme-color" content="#141235">
+<link rel="canonical" href="https://terraria.bobagi.space/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Servidor Terraria tModLoader Bobagi — status ao vivo">
+<meta property="og:description" content="Veja quem está online, os recursos do servidor, a versão do tModLoader e como entrar no servidor modado Bobagi.">
+<meta property="og:url" content="https://terraria.bobagi.space/">
+<meta property="og:locale" content="pt_BR">
+<meta name="twitter:card" content="summary">
+<meta name="robots" content="index,follow">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 29C6 22 2 16 2 10a7 7 0 0 1 14-2 7 7 0 0 1 14 2c0 6-4 12-14 19Z' fill='%23ff3b57'/%3E%3C/svg%3E">
 <style>
   :root{
@@ -20,6 +30,10 @@
     --seg:linear-gradient(90deg,rgba(0,0,0,.16) 0 2px,transparent 2px 8px);
   }
   *{box-sizing:border-box}
+  /* the [hidden] attr must beat author display rules (flex/grid) — without this,
+     .modal-backdrop{display:flex} keeps an invisible overlay over the whole page,
+     swallowing every click, and .stale-warn shows even when hidden. */
+  [hidden]{display:none!important}
   html,body{margin:0}
   body{
     font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif;
@@ -135,10 +149,17 @@
   .heart.on path{fill:url(#hg)}
   .heart.off path{fill:#3a3560;opacity:.65}
   .roster{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px}
-  .roster li{display:flex;align-items:center;gap:9px;background:rgba(255,255,255,.04);
-    border:1px solid #3a3560;border-radius:6px;padding:7px 10px;font-weight:600}
-  .roster li .av{width:20px;height:20px;border-radius:4px;background:linear-gradient(135deg,var(--green),var(--cyan));
-    display:grid;place-items:center;font-size:.7rem;color:#0a1420;font-weight:800;flex:none}
+  .roster li{list-style:none}
+  .ritem{width:100%;display:flex;align-items:center;gap:9px;background:rgba(255,255,255,.05);
+    border:1px solid #3a3560;border-radius:6px;padding:8px 10px;font:inherit;font-weight:600;
+    color:inherit;text-align:left;cursor:pointer;text-shadow:var(--shadow);
+    transition:background .15s,border-color .15s,transform .08s}
+  .ritem:hover{background:rgba(255,255,255,.1);border-color:var(--panel-edge);transform:translateX(2px)}
+  .ritem .av{width:22px;height:22px;border-radius:4px;background:linear-gradient(135deg,var(--green),var(--cyan));
+    display:grid;place-items:center;font-size:.72rem;color:#0a1420;font-weight:800;flex:none}
+  .ritem .rn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  .ritem .chev{margin-left:auto;color:var(--gray);font-size:.85rem;flex:none}
+  .roster-hint{font-size:.72rem;color:var(--gray);text-shadow:var(--shadow);margin-top:9px;text-align:center}
   .empty{color:var(--ink-dim);text-align:center;padding:10px 6px}
   .empty b{color:var(--white)}
   .count-big{font-size:2.6rem;font-weight:800;line-height:1;text-shadow:var(--shadow)}
@@ -198,6 +219,60 @@
   .facts li:last-child{border-bottom:0}
   .facts .fk{color:var(--ink-dim);text-shadow:var(--shadow)}
   .facts .fv{font-weight:700;font-family:ui-monospace,Consolas,monospace;text-align:right;text-shadow:var(--shadow)}
+
+  /* ---- version freshness ---- */
+  .vbadge{font-family:"Trebuchet MS",sans-serif;font-size:.66rem;font-weight:800;letter-spacing:.04em;
+    padding:2px 7px;border-radius:999px;border:1.5px solid;white-space:nowrap;vertical-align:middle}
+  .vbadge.ok{color:var(--green);border-color:#2f6b41;background:#132b1c}
+  .vbadge.stale{color:var(--orange);border-color:#7a5326;background:#2e2012}
+  .stale-warn{margin-top:14px;display:flex;gap:10px;align-items:flex-start;
+    background:#2a1c0e;border:2px solid var(--orange);border-radius:8px;padding:11px 13px;
+    font-size:.82rem;color:#ffe0bd;text-shadow:var(--shadow)}
+  .stale-warn b{color:var(--yellow)}
+  .stale-warn .ic{font-size:1.1rem;line-height:1;flex:none}
+
+  /* ---- player modal ---- */
+  .modal-backdrop{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;
+    padding:18px;background:rgba(6,7,20,.72);backdrop-filter:blur(3px);opacity:0;transition:opacity .18s}
+  .modal-backdrop.show{opacity:1}
+  .modal-card{position:relative;width:100%;max-width:440px;max-height:86vh;overflow:auto;
+    background:linear-gradient(180deg,var(--panel),var(--panel-2));border:2px solid var(--panel-edge);
+    border-radius:12px;padding:20px;transform:translateY(10px) scale(.98);transition:transform .18s;
+    box-shadow:inset 2px 2px 0 rgba(255,255,255,.10),inset -3px -3px 0 rgba(0,0,0,.34),0 20px 50px rgba(0,0,0,.6)}
+  .modal-backdrop.show .modal-card{transform:none}
+  .modal-x{position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:7px;cursor:pointer;
+    border:1px solid #3a3560;background:rgba(255,255,255,.05);color:var(--ink);font-size:1rem;font-weight:700;
+    display:grid;place-items:center}
+  .modal-x:hover{background:rgba(255,255,255,.12)}
+  .m-head{display:flex;align-items:center;gap:14px;margin-bottom:6px;padding-right:36px}
+  .m-av{width:52px;height:52px;border-radius:9px;background:linear-gradient(135deg,var(--green),var(--cyan));
+    display:grid;place-items:center;font-size:1.5rem;color:#0a1420;font-weight:800;flex:none;
+    box-shadow:0 3px 0 rgba(0,0,0,.35)}
+  .m-name{margin:0;font-size:1.35rem;font-weight:800;text-shadow:var(--shadow);word-break:break-word}
+  .m-sub{font-size:.8rem;color:var(--ink-dim);text-shadow:var(--shadow);margin-top:2px}
+  .m-sub .dotg{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);
+    box-shadow:0 0 7px var(--green);margin-right:6px;vertical-align:middle}
+  .m-body{margin-top:16px}
+  .m-vital{margin-bottom:12px}
+  .m-vital .top{display:flex;justify-content:space-between;margin-bottom:5px;font-size:.78rem;
+    text-transform:uppercase;letter-spacing:.08em;color:var(--ink-dim);text-shadow:var(--shadow)}
+  .m-vital .top b{font-family:ui-monospace,Consolas,monospace;color:var(--ink)}
+  .fill.life{--c1:#ff5a6e;--c2:#e01e42}
+  .fill.mana{--c1:#7aa8ff;--c2:#5b6dff}
+  .m-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
+  .m-stat{background:rgba(255,255,255,.04);border:1px solid #3a3560;border-radius:7px;padding:9px 11px}
+  .m-stat .k{font-size:.64rem;letter-spacing:.12em;text-transform:uppercase;color:var(--gray);text-shadow:var(--shadow)}
+  .m-stat .v{font-family:ui-monospace,Consolas,monospace;font-weight:700;margin-top:2px;text-shadow:var(--shadow)}
+  .m-sec-title{font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--gray);
+    text-shadow:var(--shadow);margin:16px 0 8px}
+  .m-list{display:flex;flex-wrap:wrap;gap:6px}
+  .m-tag{font-size:.78rem;padding:4px 9px;border-radius:6px;background:rgba(255,255,255,.05);
+    border:1px solid #3a3560;text-shadow:var(--shadow)}
+  .m-tag .pfx{color:var(--yellow)}
+  .m-note{background:rgba(255,255,255,.03);border:1px dashed #4b4a86;border-radius:8px;padding:13px;
+    font-size:.84rem;color:var(--ink-dim);text-shadow:var(--shadow)}
+  .m-note b{color:var(--white)}
+  .m-note a{color:var(--cyan)}
 
   footer{margin-top:32px;text-align:center;color:var(--gray);font-size:.78rem;text-shadow:var(--shadow)}
   footer .live{display:inline-flex;align-items:center;gap:7px}
@@ -265,6 +340,38 @@
   </section>
 
   <div class="grid">
+    <!-- how to join (top) -->
+    <div class="col-7">
+      <section class="panel">
+        <h2 class="panel-title hud"><span class="dot" style="color:var(--yellow)"></span>Como entrar</h2>
+        <ol class="steps">
+          <li><span class="st">Instale o <b>tModLoader</b> (grátis na Steam, dono do Terraria) — ou clique em <b>Abrir tModLoader</b> acima.</span></li>
+          <li><span class="st">Abra <b>Workshop → Mod Browser</b> e assine os mods logo abaixo (ou deixe o servidor baixar no join).</span></li>
+          <li><span class="st"><b>Deixe o tModLoader atualizar pela Steam</b> — a versão precisa bater com a do servidor.</span></li>
+          <li><span class="st">No menu, <b>Multiplayer → Join via IP</b>: digite <code id="stepAddr">bobagi.space</code>, porta <code>7777</code> e a <b>senha</b> (peça pro Gustavo).</span></li>
+        </ol>
+      </section>
+    </div>
+
+    <!-- world facts (top) -->
+    <div class="col-5">
+      <section class="panel">
+        <h2 class="panel-title hud"><span class="dot" style="color:var(--orange)"></span>O mundo</h2>
+        <ul class="facts">
+          <li><span class="fk">Nome</span><span class="fv">Bobagi</span></li>
+          <li><span class="fk">Tamanho</span><span class="fv">Pequeno</span></li>
+          <li><span class="fk">Dificuldade</span><span class="fv" style="color:var(--orange)">Expert</span></li>
+          <li><span class="fk">Máx. de jogadores</span><span class="fv">8</span></li>
+          <li><span class="fk">Último save</span><span class="fv" id="lastSave">—</span></li>
+          <li><span class="fk">tModLoader</span><span class="fv" style="font-size:.8rem"><span id="ver">—</span> <span id="verBadge" class="vbadge" hidden></span></span></li>
+        </ul>
+        <div class="stale-warn" id="staleWarn" hidden>
+          <span class="ic">⚠</span>
+          <span><b>Servidor desatualizado.</b> A versão <span id="latestVer" style="font-family:ui-monospace,Consolas,monospace"></span> do tModLoader já saiu; enquanto o servidor não atualiza, quem estiver na versão nova da Steam não consegue entrar. Ele se atualiza sozinho no próximo ciclo (diário).</span>
+        </div>
+      </section>
+    </div>
+
     <!-- players -->
     <div class="col-5">
       <section class="panel">
@@ -275,6 +382,7 @@
         </div>
         <ul class="roster" id="roster"></ul>
         <div class="empty" id="rosterEmpty" hidden>Ninguém explorando agora — <b>seja o primeiro</b> a entrar.</div>
+        <div class="roster-hint" id="rosterHint" hidden>👆 clique num jogador pra ver os detalhes</div>
       </section>
     </div>
 
@@ -300,47 +408,11 @@
     </div>
 
     <!-- mods -->
-    <div class="col-7">
+    <div class="col-12">
       <section class="panel">
         <h2 class="panel-title hud"><span class="dot" style="color:var(--purple)"></span>Mods do servidor</h2>
         <p class="note">Pra entrar você precisa dos <b>mesmos <span id="modCount">7</span> mods</b>. O servidor baixa sozinho no join, mas assinar na Workshop deixa mais rápido. Todos são só de conveniência — <b>nada muda o balanceamento</b>.</p>
         <div class="mods" id="mods"></div>
-      </section>
-    </div>
-
-    <!-- how to join -->
-    <div class="col-5">
-      <section class="panel">
-        <h2 class="panel-title hud"><span class="dot" style="color:var(--yellow)"></span>Como entrar</h2>
-        <ol class="steps">
-          <li><span class="st">Instale o <b>tModLoader</b> (grátis na Steam, dono do Terraria).</span></li>
-          <li><span class="st">Abra <b>Workshop → Mod Browser</b> e assine os mods ao lado (ou deixe o servidor baixar).</span></li>
-          <li><span class="st">No menu, <b>Multiplayer → Join via IP</b>.</span></li>
-          <li><span class="st">Digite <code id="stepAddr">bobagi.space</code>, porta <code>7777</code> e a <b>senha</b> (peça pro Gustavo).</span></li>
-        </ol>
-      </section>
-    </div>
-
-    <!-- world facts -->
-    <div class="col-12">
-      <section class="panel">
-        <h2 class="panel-title hud"><span class="dot" style="color:var(--orange)"></span>O mundo</h2>
-        <div class="grid" style="margin-top:0">
-          <div class="col-6">
-            <ul class="facts">
-              <li><span class="fk">Nome</span><span class="fv">Bobagi</span></li>
-              <li><span class="fk">Tamanho</span><span class="fv">Pequeno</span></li>
-              <li><span class="fk">Dificuldade</span><span class="fv" style="color:var(--orange)">Expert</span></li>
-            </ul>
-          </div>
-          <div class="col-6">
-            <ul class="facts">
-              <li><span class="fk">Máx. de jogadores</span><span class="fv">8</span></li>
-              <li><span class="fk">Último save</span><span class="fv" id="lastSave">—</span></li>
-              <li><span class="fk">Versão</span><span class="fv" id="ver" style="font-size:.82rem">—</span></li>
-            </ul>
-          </div>
-        </div>
       </section>
     </div>
   </div>
@@ -350,6 +422,21 @@
     <div class="disclaimer">Página não oficial, feita por fãs. Terraria e tModLoader pertencem à Re-Logic. Servidor privado hospedado em bobagi.space.</div>
   </footer>
 </main>
+
+<!-- player detail modal -->
+<div class="modal-backdrop" id="modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <button class="modal-x" id="modalX" type="button" aria-label="Fechar">✕</button>
+    <div class="m-head">
+      <span class="m-av" id="mAv">?</span>
+      <div style="min-width:0">
+        <h3 class="m-name" id="mTitle">—</h3>
+        <div class="m-sub" id="mSession"></div>
+      </div>
+    </div>
+    <div class="m-body" id="mBody"></div>
+  </div>
+</div>
 
 <div class="toast" id="toast">Endereço copiado!</div>
 
@@ -380,7 +467,92 @@
     for(var j=0;j<box.childElementCount;j++){box.children[j].className='heart '+(j<count?'on':'off');}
   }
 
-  var lastUpdated=null;
+  var lastUpdated=null, currentPlayers=[], openPlayerName=null, lastFocus=null;
+
+  function fmtDur(s){
+    if(s==null)return '';
+    if(s<60)return '~'+s+'s';var m=Math.floor(s/60);
+    if(m<60)return '~'+m+'min';var h=Math.floor(m/60);m=m%60;
+    return '~'+h+'h'+(m?(' '+m+'min'):'');
+  }
+
+  // ---- player modal (all text via textContent — names are user-controlled) ----
+  function el(tag,cls,txt){var e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e;}
+  function barEl(label,cls,cur,max){
+    var w=el('div','m-vital'),top=el('div','top');
+    top.appendChild(el('span',null,label));
+    top.appendChild(el('b',null,(cur!=null?cur:'?')+' / '+max));
+    var bar=el('div','bar'),fill=el('div','fill '+cls);
+    fill.style.width=Math.max(0,Math.min(100,(cur/max)*100))+'%';
+    bar.appendChild(fill);w.appendChild(top);w.appendChild(bar);return w;
+  }
+  function tagList(items){
+    var l=el('div','m-list');
+    items.forEach(function(it){
+      var t=el('span','m-tag');
+      if(it.pfx)t.appendChild(el('span','pfx',it.pfx+' '));
+      t.appendChild(document.createTextNode(it.name));
+      l.appendChild(t);
+    });
+    return l;
+  }
+  function renderStats(st){
+    var f=document.createDocumentFragment();
+    if(st.lifeMax)f.appendChild(barEl('Vida','life',st.life,st.lifeMax));
+    if(st.manaMax)f.appendChild(barEl('Mana','mana',st.mana,st.manaMax));
+    var grid=el('div','m-grid');
+    [['Defesa',st.defense],['Modo',st.difficulty],['Itens no inventário',st.inventoryCount]].forEach(function(kv){
+      if(kv[1]==null||kv[1]==='')return;
+      var c=el('div','m-stat');c.appendChild(el('div','k',kv[0]));c.appendChild(el('div','v',kv[1]));grid.appendChild(c);
+    });
+    if(grid.childElementCount)f.appendChild(grid);
+    if(st.equips&&st.equips.length){f.appendChild(el('div','m-sec-title','Equipado'));
+      f.appendChild(tagList(st.equips.map(function(e){return {pfx:e.prefix||'',name:e.name};})));}
+    if(st.buffs&&st.buffs.length){f.appendChild(el('div','m-sec-title','Buffs ativos'));
+      f.appendChild(tagList(st.buffs.map(function(b){return {name:b};})));}
+    if(st.inventory&&st.inventory.length){f.appendChild(el('div','m-sec-title','Itens'));
+      f.appendChild(tagList(st.inventory.map(function(i){return {name:(i.stack>1?(i.name+' ×'+i.stack):i.name)};})));}
+    return f;
+  }
+  function fillModal(p){
+    $('mAv').textContent=(p.name||'?').trim().charAt(0).toUpperCase();
+    $('mTitle').textContent=p.name;
+    var sess=$('mSession');sess.textContent='';
+    sess.appendChild(el('span','dotg'));
+    sess.appendChild(document.createTextNode('online '+(p.onlineForSec!=null?('há '+fmtDur(p.onlineForSec)):'agora')));
+    var body=$('mBody');body.textContent='';
+    if(p.stats){body.appendChild(renderStats(p.stats));}
+    else{
+      var note=el('div','m-note');
+      note.innerHTML='<b>Vida, mana, defesa, equipamentos e inventário</b> aparecem aqui quando o '+
+        'mod opcional de stats está ativo no servidor (todos os jogadores precisam dele). Sem ele, o '+
+        'servidor só informa <b>quem</b> está online e há quanto tempo. Como ativar: veja o '+
+        '<a href="https://github.com/Bobagi/terraria-status#character-stats-optional" target="_blank" rel="noopener">repositório</a>.';
+      body.appendChild(note);
+    }
+  }
+  function openModal(name){
+    var p=currentPlayers.filter(function(x){return x.name===name;})[0];
+    if(!p)return;
+    openPlayerName=name;lastFocus=document.activeElement;fillModal(p);
+    var m=$('modal');m.hidden=false;requestAnimationFrame(function(){m.classList.add('show');});
+    $('modalX').focus();document.body.style.overflow='hidden';
+  }
+  function closeModal(){
+    openPlayerName=null;var m=$('modal');m.classList.remove('show');document.body.style.overflow='';
+    setTimeout(function(){m.hidden=true;},180);
+    if(lastFocus&&lastFocus.focus)lastFocus.focus();
+  }
+  $('modalX').addEventListener('click',closeModal);
+  $('modal').addEventListener('click',function(e){if(e.target===$('modal'))closeModal();});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&openPlayerName)closeModal();});
+  $('modal').addEventListener('keydown',function(e){
+    if(e.key!=='Tab')return;
+    var foc=$('modal').querySelectorAll('button,a[href]');if(!foc.length)return;
+    var first=foc[0],last=foc[foc.length-1];
+    if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
+    else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+  });
 
   function apply(d){
     lastUpdated=d.updatedAt;
@@ -391,20 +563,29 @@
 
     // players
     var pc=d.players.count||0,pm=d.players.max||8;
-    $('pCount').textContent=pc;$('pMax').textContent=pm;$('pillSlots').textContent=pm;$('pMax').textContent=pm;
+    $('pCount').textContent=pc;$('pMax').textContent=pm;$('pillSlots').textContent=pm;
     renderHearts(pc,pm);
-    var roster=$('roster'),empty=$('rosterEmpty');
+    var list=(d.players&&d.players.list)||[];
+    currentPlayers=list;
+    var roster=$('roster'),empty=$('rosterEmpty'),hint=$('rosterHint');
     roster.innerHTML='';
-    if(d.players.names&&d.players.names.length){
-      empty.hidden=true;
-      d.players.names.forEach(function(n){
+    if(list.length){
+      empty.hidden=true;hint.hidden=false;
+      list.forEach(function(p){
         var li=document.createElement('li');
-        var initial=(n||'?').trim().charAt(0).toUpperCase();
-        li.innerHTML='<span class="av"></span><span></span>';
-        li.children[0].textContent=initial;li.children[1].textContent=n;
-        roster.appendChild(li);
+        var btn=el('button','ritem');btn.type='button';
+        btn.appendChild(el('span','av',(p.name||'?').trim().charAt(0).toUpperCase()));
+        btn.appendChild(el('span','rn',p.name));
+        btn.appendChild(el('span','chev','›'));
+        btn.addEventListener('click',function(){openModal(p.name);});
+        li.appendChild(btn);roster.appendChild(li);
       });
-    }else{empty.hidden=false;}
+    }else{empty.hidden=false;hint.hidden=true;}
+    // keep an open modal in sync with fresh data (or close it if the player left)
+    if(openPlayerName){
+      var still=list.filter(function(p){return p.name===openPlayerName;})[0];
+      if(still)fillModal(still);else closeModal();
+    }
 
     // vitals
     var cpu=d.resources.cpuPerc,ram=d.resources.memPerc;
@@ -423,9 +604,15 @@
     $('net').textContent=net;
     $('disk').textContent=fmtBytes(d.resources.diskWorldBytes);
 
-    // world
+    // world + version freshness
     $('lastSave').textContent=d.world.lastSaveAt?fmtAgo(d.world.lastSaveAt):'—';
-    $('ver').textContent=d.server.tmodloaderVersion?('tModLoader '+d.server.tmodloaderVersion):'—';
+    var s=d.server||{};
+    $('ver').textContent=s.tmodloaderVersion?('v'+s.tmodloaderVersion):'—';
+    var badge=$('verBadge'),warn=$('staleWarn');
+    if(s.upToDate===true){badge.hidden=false;badge.className='vbadge ok';badge.textContent='✓ atualizado';warn.hidden=true;}
+    else if(s.upToDate===false){badge.hidden=false;badge.className='vbadge stale';badge.textContent='⚠ desatualizada';
+      warn.hidden=false;$('latestVer').textContent='v'+(s.latestVersion||'?');}
+    else{badge.hidden=true;warn.hidden=true;}
 
     // mods (once)
     var mbox=$('mods');
@@ -442,11 +629,11 @@
       });
     }
     // address + steam launch
-    if(d.server){
-      $('addr').textContent=d.server.host+':'+d.server.port;
-      $('stepAddr').textContent=d.server.host;
-      if(d.server.ip)$('ipAlt').textContent=d.server.ip+':'+d.server.port;
-      if(d.server.steamAppId)$('steamBtn').href='steam://run/'+d.server.steamAppId;
+    if(s.host){
+      $('addr').textContent=s.host+':'+s.port;
+      $('stepAddr').textContent=s.host;
+      if(s.ip)$('ipAlt').textContent=s.ip+':'+s.port;
+      if(s.steamAppId)$('steamBtn').href='steam://run/'+s.steamAppId;
     }
     if(d.mods)$('modCount').textContent=d.mods.length;
   }

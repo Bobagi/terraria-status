@@ -24,6 +24,9 @@ const DATA_DIR = process.env.TMOD_DATA_DIR || '/opt/terraria-tmodloader/data/tMo
 const WORLD_NAME = process.env.TMOD_WORLD || 'Bobagi';
 const WORLD_FILE = path.join(DATA_DIR, 'Worlds', WORLD_NAME + '.wld');
 const PUBLIC_DIR = path.join(__dirname, 'public');
+// Optional: written by the companion server-side mod (see optional-serverside-mod/).
+// If present & fresh, per-player character stats appear in the site's player modal.
+const STATS_FILE = process.env.TMOD_STATS_FILE || path.join(DATA_DIR, 'playerstats.json');
 
 // ---- static, subject-known metadata --------------------------------------
 const MODS = [
@@ -49,7 +52,9 @@ const SERVER = {
   port: parseInt(process.env.SERVER_PORT || '7777', 10),
   passwordProtected: true,
   steamAppId: 1281930,         // tModLoader on Steam (steam://run/<id> opens it)
-  tmodloaderVersion: null,     // filled live by collectVersion()
+  tmodloaderVersion: null,     // running version, filled live by collectVersion()
+  latestVersion: null,         // latest stable on GitHub, filled by collectLatestVersion()
+  upToDate: null,              // true/false/null — running >= latest?
   terrariaVersion: '1.4.4.9',
 };
 
@@ -65,11 +70,16 @@ let snapshot = {
     netRxText: null, netTxText: null,
     diskWorldBytes: null,
   },
-  players: { count: 0, max: WORLD.maxPlayers, names: [], sampledAt: null },
+  // list: [{ name, onlineForSec, stats|null }]. statsSource=true when the optional
+  // companion mod is feeding playerstats.json (life/gear/inventory); false → names only.
+  players: { count: 0, max: WORLD.maxPlayers, list: [], statsSource: false, sampledAt: null },
   world: Object.assign({ lastSaveAt: null }, WORLD),
   server: SERVER,
   mods: MODS,
 };
+
+// name -> firstSeen epoch ms, so we can show "online for ~X" without a mod.
+const sessions = Object.create(null);
 
 // ---- helpers ---------------------------------------------------------------
 function run(cmd, args, timeoutMs = 12000) {
@@ -132,9 +142,29 @@ async function collectStats() {
   } catch (_) { /* keep last */ }
 }
 
+// Optional per-player character stats, written by the companion server-side mod.
+// Ignored if missing or stale (>60 s old) so a crashed/removed mod can't show
+// ghost data. Never throws.
+function readModStats() {
+  try {
+    const st = fs.statSync(STATS_FILE);
+    if (Date.now() - st.mtimeMs > 60000) return null;   // stale mod output
+    if (st.size > 512 * 1024) return null;              // bound parse cost
+    const data = JSON.parse(fs.readFileSync(STATS_FILE, 'utf8'));
+    const byName = Object.create(null);
+    const arr = Array.isArray(data) ? data : (Array.isArray(data.players) ? data.players : []);
+    for (const p of arr) if (p && typeof p.name === 'string') byName[p.name] = p;
+    return byName;
+  } catch (_) { return null; }
+}
+
 async function collectPlayers() {
   // Only meaningful while the container is up.
-  if (!snapshot.online) { snapshot.players.count = 0; snapshot.players.names = []; return; }
+  if (!snapshot.online) {
+    snapshot.players.count = 0; snapshot.players.list = []; snapshot.players.statsSource = false;
+    for (const n of Object.keys(sessions)) delete sessions[n];
+    return;
+  }
   await run('docker', ['exec', CONTAINER, 'inject', 'playing']);
   await new Promise((r) => setTimeout(r, 900));
   // Read the console straight from the tmux pane — fast and clean, unlike
@@ -162,7 +192,18 @@ async function collectPlayers() {
     if (name && !/^<server>/i.test(name)) names.push(name.slice(0, 24));
     if (names.length >= WORLD.maxPlayers) break;
   }
-  snapshot.players.names = names;
+  // Track session start (approx: first poll that sees the name) and drop leavers.
+  const now = Date.now();
+  for (const n of names) if (!sessions[n]) sessions[n] = now;
+  for (const n of Object.keys(sessions)) if (!names.includes(n)) delete sessions[n];
+
+  const statByName = readModStats();
+  snapshot.players.statsSource = !!statByName;
+  snapshot.players.list = names.map((n) => ({
+    name: n,
+    onlineForSec: Math.floor((now - sessions[n]) / 1000),
+    stats: (statByName && statByName[n]) || null,
+  }));
   snapshot.players.count = names.length;
   snapshot.players.sampledAt = new Date().toISOString();
 }
@@ -181,6 +222,33 @@ async function collectVersion() {
     const v = lbl.out.trim().replace(/^v/, '');
     if (v) snapshot.server.tmodloaderVersion = v;
   }
+}
+
+// Compare dotted numeric versions ("2026.5.3.0" vs "2026.05.3.0"). Sign of a-b.
+function cmpVer(a, b) {
+  const pa = String(a).split('.').map(Number), pb = String(b).split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] || 0) - (pb[i] || 0);
+    if (d) return d;
+  }
+  return 0;
+}
+
+async function collectLatestVersion() {
+  // GitHub latest stable tag (unauthenticated: 60 req/h — this runs every 5 min).
+  try {
+    const resp = await fetch('https://api.github.com/repos/tModLoader/tModLoader/releases/latest', {
+      headers: { 'user-agent': 'terraria-status', accept: 'application/vnd.github+json' },
+      signal: AbortSignal.timeout(12000),
+    });
+    if (!resp.ok) return;
+    const j = await resp.json();
+    const tag = String(j.tag_name || '').replace(/^v/, '');
+    if (!/^\d/.test(tag)) return;
+    snapshot.server.latestVersion = tag;
+    const cur = snapshot.server.tmodloaderVersion;
+    snapshot.server.upToDate = cur ? cmpVer(cur, tag) >= 0 : null;
+  } catch (_) { /* keep last */ }
 }
 
 async function collectDisk() {
@@ -203,7 +271,7 @@ async function playerLoop() {
   finally { setTimeout(playerLoop, 25000); }
 }
 async function diskLoop() {
-  try { await collectDisk(); await collectVersion(); } catch (_) {}
+  try { await collectDisk(); await collectVersion(); await collectLatestVersion(); } catch (_) {}
   finally { setTimeout(diskLoop, 5 * 60 * 1000); }
 }
 

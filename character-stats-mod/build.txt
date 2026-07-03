@@ -1,0 +1,6 @@
+displayName = Status Export (server-side)
+author = Bobagi
+version = 0.1
+# side = Server → clients DON'T need this mod; it never joins the required modlist,
+# so nobody gets kicked for not having it. It only runs on the dedicated server.
+side = Server

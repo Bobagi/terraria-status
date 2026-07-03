@@ -1,0 +1,10 @@
+Server-side helper for the terraria-status web page.
+
+Every ~3 seconds it writes the online players' character stats (health, mana,
+defense, equipped gear, inventory highlights and active buffs) to
+playerstats.json in the tModLoader save directory, so the status website can
+show them in its player modal.
+
+side = Server — players do NOT need this mod to connect; it does not change the
+required modlist. It reads only data the server already has for multiplayer sync
+and adds no gameplay content.

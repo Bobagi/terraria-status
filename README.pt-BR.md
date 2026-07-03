@@ -6,9 +6,10 @@ Uma **página de status em Node.js sem dependências** pra servidor dedicado de 
 modado (**tModLoader**) rodando em Docker. Mostra, ao vivo e atualizando sozinha:
 
 - 🟢 Servidor **online/offline**, uptime, reinícios
-- 👥 **Jogadores online** (nomes, sem IPs) e vagas livres
+- 👥 **Jogadores online** (nomes, sem IPs) e vagas livres — **clique num nome pra abrir o modal do personagem** (veja abaixo)
 - 📊 **CPU / RAM** do container do servidor, tráfego de rede, tamanho do mundo em disco
 - 🗺️ Info do mundo (nome, tamanho, dificuldade, último save) e a **versão do tModLoader rodando**
+- 🔺 **Aviso de desatualizado**: compara a versão rodando com a última stable no GitHub e sinaliza explicitamente quando o servidor está atrás
 - 🧩 A **lista de mods** do servidor com links pra Steam Workshop
 - 🎮 Botão **"Abrir tModLoader"** (`steam://run/1281930`) e endereço copiável
 
@@ -84,6 +85,27 @@ server {
 
 A **lista de mods** exibida é o array `MODS` no topo do `server.js` — edite pra bater com
 o `TMOD_ENABLEDMODS` do seu servidor (nome, ID da Workshop, descrição de uma linha).
+
+## Stats de personagem (opcional)
+
+Clique no nome de um jogador e abre um modal. De cara ele mostra **quem** é e **há
+quanto tempo** está online (tirado do console, sem precisar de mod).
+
+Pra mostrar também **vida, mana, defesa, equipamentos, inventário e buffs**, rode o
+mod server-side opcional em [`character-stats-mod/`](character-stats-mod/). Ele grava
+`playerstats.json` na pasta de saves a cada poucos segundos e este app lê o arquivo.
+
+Pontos-chave (detalhes no README do mod):
+
+- É **`side = Server`** — **os jogadores NÃO precisam dele**, não entra na modlist
+  obrigatória, e ninguém é kickado por não ter.
+- Um servidor tModLoader puro expõe **só os nomes** pelo console; não há API nativa
+  pros dados do personagem, e a **REST API do tShock é incompatível com tModLoader**.
+  Um mod server-side é o único caminho.
+- **"Level" não existe no Terraria** a não ser que você rode também um mod de RPG/nível.
+
+Até o mod ser ativado, o modal mostra uma nota explicando isso — o site funciona
+totalmente sem ele.
 
 ## Notas de segurança
 

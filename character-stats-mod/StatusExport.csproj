@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Standard tModLoader 1.4 mod project. When this folder is placed in your
+       tModLoader ModSources directory, the game generates/points this import at
+       its own tMLMod.targets; the relative path below matches the default layout
+       (…/ModSources/StatusExport/StatusExport.csproj). -->
+  <Import Project="../../tMLMod.targets" />
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>StatusExport</AssemblyName>
+  </PropertyGroup>
+</Project>

@@ -6,9 +6,10 @@ A **zero-dependency Node.js status page** for a modded Terraria (**tModLoader**)
 server running in Docker. It shows, live and auto-refreshing:
 
 - 🟢 Server **online/offline**, uptime, restarts
-- 👥 **Players online** (names, no IPs) and free slots
+- 👥 **Players online** (names, no IPs) and free slots — **click a name for a character modal** (see below)
 - 📊 **CPU / RAM** of the server container, network I/O, world size on disk
 - 🗺️ World info (name, size, difficulty, last save) and the **running tModLoader version**
+- 🔺 **Out-of-date warning**: compares the running version against the latest stable release on GitHub and flags it explicitly when the server is behind
 - 🧩 The server's **mod list** with Steam Workshop links
 - 🎮 A **"Launch tModLoader"** button (`steam://run/1281930`) and copyable server address
 
@@ -84,6 +85,27 @@ server {
 
 The **mod list** shown on the page is the `MODS` array at the top of `server.js` — edit it
 to match your server's `TMOD_ENABLEDMODS` (name, Workshop ID, one-line description).
+
+## Character stats (optional)
+
+Click a player's name and a modal opens. Out of the box it shows **who** they are
+and **how long** they've been online (derived from the console, no mod needed).
+
+To also show **health, mana, defense, equipped gear, inventory and buffs**, run the
+optional server-side mod in [`character-stats-mod/`](character-stats-mod/). It writes
+`playerstats.json` to the save directory every few seconds and this app reads it.
+
+Key points (full details in the mod's README):
+
+- It's **`side = Server`** — **players don't need it**, it doesn't change the required
+  modlist, and nobody gets kicked for not having it.
+- A vanilla tModLoader server exposes **only names** over its console; there's no
+  built-in API for character data, and **tShock's REST API is incompatible with
+  tModLoader**. A small server-side mod is the only route.
+- **"Level" isn't a Terraria concept** unless you also run an RPG/leveling mod.
+
+Until the mod is enabled, the modal shows a short note explaining this — the site
+works fully without it.
 
 ## Security notes
 
