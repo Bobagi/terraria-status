@@ -749,6 +749,14 @@
     return [SKY_ANCHORS[0][1],SKY_ANCHORS[0][2],SKY_ANCHORS[0][3]];
   }
   var sky={hour:null,phase:0,last:0};
+  var skySeeded=false; // seed the day/night clock ONCE from the server, then run purely client-side
+  // Current time from the client-side sky clock (so the world-panel pill stays in
+  // sync with the moving sun/moon instead of re-reading the server each poll).
+  function skyClock(){
+    if(sky.hour==null)return null;
+    var h=(sky.hour+24)%24,hh=Math.floor(h),mm=Math.floor((h-hh)*60);
+    return {day:h>=4.5&&h<19.5,text:(hh<10?'0':'')+hh+':'+(mm<10?'0':'')+mm};
+  }
   function renderSky(){
     var h=sky.hour;if(h==null)return;h=(h+24)%24;
     var isDay=h>=4.5&&h<19.5;
@@ -797,7 +805,12 @@
 
   function apply(d){
     lastUpdated=d.updatedAt;
-    setSkyFromLive(d.world&&d.world.live);
+    // Seed the sky clock only on the FIRST poll that carries a live in-game time,
+    // then let the client-side rAF tween run standalone. We deliberately do NOT
+    // re-sync every 5 s — the server's minute-resolution time would snap the sun/
+    // moon and cause the stutter. (One request feeds everything; nothing extra is
+    // polled for day/night.)
+    if(!skySeeded&&d.world&&d.world.live&&d.world.live.timeText){setSkyFromLive(d.world.live);skySeeded=true;}
     // status gem
     var gem=$('gem'),gt=$('gemText');
     if(d.online){gem.className='status-gem is-online';gt.textContent='ONLINE';}
@@ -868,7 +881,9 @@
     if(lw){
       wl.hidden=false;
       wl.appendChild(wpill('prog','⚔ '+(lw.progression||'—')));
-      wl.appendChild(wpill('',(lw.dayTime?'☀ Dia':'🌙 Noite')+(lw.timeText?(' · '+lw.timeText):'')));
+      // day/night pill uses the seeded client clock (falls back to live only pre-seed)
+      var sc=skyClock(),dn=sc||{day:lw.dayTime,text:lw.timeText};
+      wl.appendChild(wpill('',(dn.day?'☀ Dia':'🌙 Noite')+(dn.text?(' · '+dn.text):'')));
       if(lw.bloodMoon)wl.appendChild(wpill('warn','🩸 Lua de Sangue'));
       if(lw.eclipse)wl.appendChild(wpill('warn','🌑 Eclipse Solar'));
       if(lw.pumpkinMoon)wl.appendChild(wpill('warn','🎃 Lua Abóbora'));
