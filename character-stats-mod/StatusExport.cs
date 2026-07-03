@@ -113,7 +113,10 @@ namespace StatusExport
 				lifeMax = p.statLifeMax2,
 				mana = p.statMana,
 				manaMax = p.statManaMax2,
-				defense = p.statDefense,
+				// statDefense is a DefenseStat struct since tML 1.4.4 — coerce to the
+				// effective int via its implicit conversion (serializing it raw dumps
+				// {Positive,Negative,AdditiveBonus,FinalMultiplier} instead of a number).
+				defense = (int)p.statDefense,
 				difficulty,
 				inventoryCount = invCount,
 				equips,

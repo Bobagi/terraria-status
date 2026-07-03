@@ -502,7 +502,7 @@
     if(st.manaMax)f.appendChild(barEl('Mana','mana',st.mana,st.manaMax));
     var grid=el('div','m-grid');
     [['Defesa',st.defense],['Modo',st.difficulty],['Itens no inventário',st.inventoryCount]].forEach(function(kv){
-      if(kv[1]==null||kv[1]==='')return;
+      if(kv[1]==null||kv[1]===''||typeof kv[1]==='object')return; // skip non-primitives (never render [object Object])
       var c=el('div','m-stat');c.appendChild(el('div','k',kv[0]));c.appendChild(el('div','v',kv[1]));grid.appendChild(c);
     });
     if(grid.childElementCount)f.appendChild(grid);
