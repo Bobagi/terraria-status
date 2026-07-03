@@ -600,22 +600,26 @@
       +'<rect x="12" y="12" width="2" height="3" fill="#20304a"/><rect x="18" y="12" width="2" height="3" fill="#20304a"/>'
       +'</svg>';
   }
-  // A curated spread of colorful, recognizable Terraria item sprites used as the
-  // per-player emblem avatar (leans on gems/pets/misc over weapons so it doesn't
-  // read as their held item). Deterministic by name; falls back to the drawn
-  // portrait if the sprite set isn't installed.
+  // Per-player emblem avatar, deterministic by name. Preference order:
+  //  1) a Terraria town-NPC/critter map-head (a real face — best),
+  //  2) a curated colorful item sprite,
+  //  3) the drawn portrait (if no sprite set is installed).
+  // Curated town-NPC head ids that read well as faces (skip the "?" default,
+  // hard-to-read grey critters and the item-like tail end).
+  var NPC_AVATARS=[1,2,3,4,5,7,8,10,11,12,13,14,15,17,19,20,22,23,24,25,45,48,51,52,53,57,58,59,60,62,63,69,71,72,77];
   var AVATARS=[65,757,674,46,3065,494,112,1928,1244,180,181,182,184,999,1309,3018,2880,1256,1326,950,4952,267,3541,1178];
   function avatarEl(name){
-    if(spritesOn.item){
-      var id=AVATARS[hashCode(name)%AVATARS.length];
-      var img=document.createElement('img');img.className='av-img';img.alt='';img.loading='lazy';
-      img.src='/sprites/item/'+id+'.png';
+    var h=hashCode(name),src=null;
+    if(spritesOn.npc)      src='/sprites/npc/'+NPC_AVATARS[h%NPC_AVATARS.length]+'.png';
+    else if(spritesOn.item)src='/sprites/item/'+AVATARS[h%AVATARS.length]+'.png';
+    if(src){
+      var img=document.createElement('img');img.className='av-img';img.alt='';img.loading='lazy';img.src=src;
       img.onerror=function(){var s=document.createElement('span');s.innerHTML=portraitSVG(name);
         if(img.parentNode)img.parentNode.replaceChild(s.firstChild,img);};
       return img;
     }
-    var s=document.createElement('span');s.style.cssText='display:block;width:100%;height:100%';
-    s.innerHTML=portraitSVG(name);return s;
+    var sp=document.createElement('span');sp.style.cssText='display:block;width:100%;height:100%';
+    sp.innerHTML=portraitSVG(name);return sp;
   }
 
   // ---- item rarity + category glyphs ----
@@ -644,7 +648,7 @@
   };
   function glyphEl(kind){var s=el('span','glyph');s.innerHTML='<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'+(GLYPHS[kind]||GLYPHS.material)+'</svg>';return s;}
   var KIND_LABEL={melee:'Arma corpo-a-corpo',ranged:'Arma à distância',magic:'Arma mágica',summon:'Invocação',weapon:'Arma',tool:'Ferramenta',armor:'Armadura',accessory:'Acessório',ammo:'Munição',potion:'Poção',block:'Bloco',coin:'Moeda',material:'Material'};
-  var spritesOn={item:false,buff:false};
+  var spritesOn={item:false,buff:false,npc:false};
 
   function itemTile(it){
     var w=el('span','itile');
@@ -847,7 +851,7 @@
     lastUpdated=d.updatedAt;
     // Detect the sprite set BEFORE rendering avatars/tiles (else the first paint
     // falls back to glyphs/portraits for a frame).
-    if(d.server&&d.server.sprites){spritesOn.item=!!d.server.sprites.item;spritesOn.buff=!!d.server.sprites.buff;}
+    if(d.server&&d.server.sprites){spritesOn.item=!!d.server.sprites.item;spritesOn.buff=!!d.server.sprites.buff;spritesOn.npc=!!d.server.sprites.npc;}
     // Seed the sky clock only on the FIRST poll that carries a live in-game time,
     // then let the client-side rAF tween run standalone. We deliberately do NOT
     // re-sync every 5 s — the server's minute-resolution time would snap the sun/

@@ -22,6 +22,7 @@ const SRC = process.argv[2] || '/root/prints/terrariaConvert';
 
 mkdirSync(join(OUT, 'item'), { recursive: true });
 mkdirSync(join(OUT, 'buff'), { recursive: true });
+mkdirSync(join(OUT, 'npc'), { recursive: true });   // town-NPC + boss map-head icons (used as player avatars)
 
 // Recursively collect every *.xnb under SRC.
 function walk(dir, out = []) {
@@ -50,17 +51,21 @@ async function xnbToPng(path) {
 }
 
 const all = walk(SRC);
-let item = 0, buff = 0, other = 0, failed = 0;
+let item = 0, buff = 0, npc = 0, other = 0, failed = 0;
 for (const path of all) {
   const name = basename(path);
-  const mI = /^Item_(\d+)\.xnb$/i.exec(name);
-  const mB = /^Buff_(\d+)\.xnb$/i.exec(name);
-  if (!mI && !mB) { other++; continue; }
+  const mI  = /^Item_(\d+)\.xnb$/i.exec(name);
+  const mB  = /^Buff_(\d+)\.xnb$/i.exec(name);
+  const mNb = /^NPC_Head_Boss_(\d+)\.xnb$/i.exec(name); // boss map-heads (check before the generic one)
+  const mN  = /^NPC_Head_(\d+)\.xnb$/i.exec(name);      // town-NPC / critter map-heads
+  if (!mI && !mB && !mNb && !mN) { other++; continue; }
   try {
     const png = await xnbToPng(path);
     if (!png) { failed++; continue; }
-    if (mI) { writeFileSync(join(OUT, 'item', mI[1] + '.png'), png); item++; }
-    else    { writeFileSync(join(OUT, 'buff', mB[1] + '.png'), png); buff++; }
+    if (mI)       { writeFileSync(join(OUT, 'item', mI[1] + '.png'), png); item++; }
+    else if (mB)  { writeFileSync(join(OUT, 'buff', mB[1] + '.png'), png); buff++; }
+    else if (mNb) { writeFileSync(join(OUT, 'npc', 'boss_' + mNb[1] + '.png'), png); npc++; }
+    else          { writeFileSync(join(OUT, 'npc', mN[1] + '.png'), png); npc++; }
   } catch (e) {
     failed++;
     if (failed <= 5) console.warn('  skip', name, '-', e.message);
@@ -68,6 +73,6 @@ for (const path of all) {
 }
 
 console.log(`\nsource: ${SRC}`);
-console.log(`items: ${item} png   buffs: ${buff} png   (skipped ${other} non-item/buff, ${failed} failed)`);
+console.log(`items: ${item} png   buffs: ${buff} png   npc-heads: ${npc} png   (skipped ${other} other, ${failed} failed)`);
 console.log(`out:   ${OUT}/{item,buff}`);
 console.log('Restart the status server so it re-detects the sprite set:  pm2 restart terraria-status');

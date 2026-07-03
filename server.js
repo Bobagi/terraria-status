@@ -58,7 +58,7 @@ const SERVER = {
   terrariaVersion: '1.4.4.9',
   // Whether a decoded pixel-sprite set is present (else the page draws category
   // glyphs). Populated once at startup from the public/sprites/ dirs.
-  sprites: { item: false, buff: false },
+  sprites: { item: false, buff: false, npc: false },
 };
 
 // A sprite set is "present" only if the dir exists AND holds at least one file —
@@ -324,7 +324,7 @@ http.createServer((req, res) => {
   serveStatic(req, res);
 }).listen(PORT, HOST, () => {
   console.log(`terraria-status listening on http://${HOST}:${PORT}`);
-  SERVER.sprites = { item: hasSprites('item'), buff: hasSprites('buff') };
+  SERVER.sprites = { item: hasSprites('item'), buff: hasSprites('buff'), npc: hasSprites('npc') };
   fastLoop(); diskLoop();
   setTimeout(playerLoop, 3000); // let the first inspect land so `online` is known
 
