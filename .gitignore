@@ -2,3 +2,7 @@ node_modules/
 .claude/
 *.log
 .env
+
+# tModLoader mod build outputs (keep the source + the prebuilt .tmod we ship)
+character-stats-mod/bin/
+character-stats-mod/obj/

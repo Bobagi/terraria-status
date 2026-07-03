@@ -1,4 +1,8 @@
-# Status Export — optional server-side mod
+# Status Export — server-side character-stats mod
+
+> 🟢 **This mod is LIVE on the demo server** ([terraria.bobagi.space](https://terraria.bobagi.space)).
+> A prebuilt `.tmod` is included in [`prebuilt/`](prebuilt/) — you can deploy it without
+> building anything.
 
 This small **tModLoader mod feeds the character-stats modal** on the status page
 (health, mana, defense, equipped gear, inventory highlights, active buffs).
@@ -20,11 +24,19 @@ with tModLoader** (they're mutually exclusive). A small mod is the only way.
 
 So you can enable it on the server alone.
 
-> ⚠️ **Reference implementation.** It's written against the documented tModLoader
-> API and is deliberately minimal, but build and test it on a staging server
-> before relying on it — it has not been validated against a live client in CI.
-> "Level" is intentionally absent: **Terraria has no character levels** unless you
-> also run an RPG/leveling mod (then extend `BuildPlayer` to read that mod's data).
+It uses `PostUpdateEverything()` (the reliable per-tick hook on a dedicated
+server) and is defensive: the whole export is wrapped in try/catch and logs once
+on success/failure, so a bad read can never destabilize the server. When the
+server is empty it idles (the file simply stops updating and the site shows no
+stats — there's nobody to show); when players are online it refreshes every ~3 s.
+
+> ℹ️ **"Level" is intentionally absent:** Terraria has no character levels unless
+> you also run an RPG/leveling mod. To add it, extend `BuildPlayer()` to read that
+> mod's data.
+>
+> ⚠️ **Rebuild after a major tModLoader update.** A `.tmod` is tied to the tML
+> version it was built against. After a big version bump, rebuild (below) if the
+> server log shows the mod being skipped — the server still boots fine either way.
 
 ## How it works
 
@@ -43,22 +55,45 @@ it's present and fresh (< 60 s old) and merges it into `/api/status`.
 
 ## Build
 
-1. Install tModLoader (the game), open it, **Workshop → Develop Mods**.
-2. Copy this folder to your tModLoader `ModSources/StatusExport/` directory.
-3. **Build + Reload** (or `Build Mod`). This produces `StatusExport.tmod`.
+**Easiest:** just use the prebuilt [`prebuilt/StatusExport.tmod`](prebuilt/) and skip to Deploy.
 
-(Headless/CI build is possible via `dotnet build` against tModLoader's
-`tMLMod.targets`, but the in-game build is the supported path.)
+**In-game:** install tModLoader, copy this folder to your `ModSources/StatusExport/`,
+then **Workshop → Develop Mods → Build**.
+
+**Headless** (how this repo's copy was built — no game GUI, works on a server):
+
+```bash
+# in a container/host that has tModLoader's files (tModLoader.dll + tMLMod.targets):
+curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 8.0 --install-dir /tmp/sdk
+cp -r character-stats-mod /path/to/tModLoader/ModSources/StatusExport
+cd /path/to/tModLoader/ModSources/StatusExport
+PATH=/tmp/sdk:$PATH HOME=/tmp dotnet build -c Release
+# → StatusExport.tmod lands in ~/.local/share/Terraria/tModLoader/Mods/
+```
 
 ## Deploy (Docker server from the guide)
 
-1. Put `StatusExport.tmod` where the server loads mods (the `Mods` folder of the
-   data volume, e.g. `data/tModLoader/Mods/StatusExport.tmod`).
-2. Enable it. Since it's `side = Server`, you do **not** add it to the Workshop
-   auto-download list players use — only the server needs the `.tmod`. Add its
-   internal name to the server's enabled mods (or `enabled.json`).
-3. Restart the server. Within a few seconds `playerstats.json` appears next to
-   your world, and the site's player modal fills in automatically.
+The [`jacobsmile/tmodloader1.4`](https://github.com/JACOBSMILE/tmodloader1.4) image
+rebuilds `enabled.json` from `TMOD_ENABLEDMODS` (Steam Workshop IDs) on every boot,
+which would wipe a plain local mod. The clean, **persistent** trick — and exactly how
+it's deployed on the live server — is to give the local `.tmod` its own "workshop"
+folder so the existing machinery enables it:
+
+1. Drop the `.tmod` into a self-assigned Workshop-id folder **in the data volume**
+   (pick a high id that won't collide, e.g. `9000000001`):
+   ```
+   data/steamMods/steamapps/workshop/content/1281930/9000000001/2026.05/StatusExport.tmod
+   data/steamMods/steamapps/workshop/content/1281930/9000000001/workshop.json
+   ```
+   (`workshop.json`: `{"ContentType":"Mod","SteamEntryId":9000000001,"Publicity":0}`)
+2. Add that id to **`TMOD_ENABLEDMODS`** in `docker-compose.yml` — but **NOT** to
+   `TMOD_AUTODOWNLOAD` (steamcmd must never try to fetch a non-Workshop id).
+3. `docker compose up -d`. The entrypoint resolves the id → `StatusExport` → enables
+   it; tModLoader loads it. Within a few seconds `playerstats.json` appears next to
+   your world and the site's player modal fills in automatically.
+
+Because both the `.tmod` (data volume) and the id (compose env) persist, the mod stays
+enabled across restarts and the guide's daily auto-update.
 
 ## Security / privacy
 

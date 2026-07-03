@@ -23,27 +23,33 @@ namespace StatusExport
 	{
 		private const int IntervalTicks = 180; // ~3 s at 60 fps
 		private int _tick;
+		private bool _loggedOk, _loggedErr;
 
-		public override void PostUpdatePlayers()
+		// PostUpdateEverything fires every tick on a dedicated server (unlike some
+		// player/world hooks that can be skipped headless).
+		public override void PostUpdateEverything()
 		{
 			// Only ever run on a dedicated server.
 			if (!Main.dedServ) return;
 			if (++_tick < IntervalTicks) return;
 			_tick = 0;
 
-			var players = Main.player
-				.Where(p => p != null && p.active)
-				.Select(BuildPlayer)
-				.ToList();
-
-			var payload = new
-			{
-				updatedAt = System.DateTime.UtcNow.ToString("o"),
-				players
-			};
-
+			// The whole body is guarded: a mod must never destabilize the server,
+			// and this one only produces a side file — if anything throws, log it
+			// once and skip rather than spamming the tick loop.
 			try
 			{
+				var players = Main.player
+					.Where(p => p != null && p.active)
+					.Select(BuildPlayer)
+					.ToList();
+
+				var payload = new
+				{
+					updatedAt = System.DateTime.UtcNow.ToString("o"),
+					players
+				};
+
 				// Main.SavePath is the tModLoader save dir (e.g. /data/tModLoader in
 				// the Docker image), which is exactly where the site reads from.
 				string tmp = Path.Combine(Main.SavePath, "playerstats.json.tmp");
@@ -51,8 +57,13 @@ namespace StatusExport
 				File.WriteAllText(tmp, JsonConvert.SerializeObject(payload));
 				File.Copy(tmp, dst, true);   // near-atomic replace so the reader never sees a half file
 				File.Delete(tmp);
+				if (!_loggedOk) { Mod.Logger.Info($"StatusExport: writing {players.Count} player(s) to {dst}"); _loggedOk = true; }
 			}
-			catch { /* never let a disk hiccup disturb the server */ }
+			catch (System.Exception e)
+			{
+				// Log once so a real problem is diagnosable, but never destabilize the server.
+				if (!_loggedErr) { Mod.Logger.Warn("StatusExport export failed: " + e); _loggedErr = true; }
+			}
 		}
 
 		private static object BuildPlayer(Player p)

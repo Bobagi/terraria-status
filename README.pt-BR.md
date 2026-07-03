@@ -92,8 +92,9 @@ Clique no nome de um jogador e abre um modal. De cara ele mostra **quem** é e *
 quanto tempo** está online (tirado do console, sem precisar de mod).
 
 Pra mostrar também **vida, mana, defesa, equipamentos, inventário e buffs**, rode o
-mod server-side opcional em [`character-stats-mod/`](character-stats-mod/). Ele grava
-`playerstats.json` na pasta de saves a cada poucos segundos e este app lê o arquivo.
+mod server-side em [`character-stats-mod/`](character-stats-mod/) — **ele está ativo no
+demo ao vivo**, e vem com um `.tmod` pré-buildado + build headless de um comando. Ele
+grava `playerstats.json` na pasta de saves a cada poucos segundos e este app lê o arquivo.
 
 Pontos-chave (detalhes no README do mod):
 

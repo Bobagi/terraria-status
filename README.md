@@ -92,8 +92,9 @@ Click a player's name and a modal opens. Out of the box it shows **who** they ar
 and **how long** they've been online (derived from the console, no mod needed).
 
 To also show **health, mana, defense, equipped gear, inventory and buffs**, run the
-optional server-side mod in [`character-stats-mod/`](character-stats-mod/). It writes
-`playerstats.json` to the save directory every few seconds and this app reads it.
+server-side mod in [`character-stats-mod/`](character-stats-mod/) — **it's enabled on
+the live demo**, and a prebuilt `.tmod` + one-command headless build are included. It
+writes `playerstats.json` to the save directory every few seconds and this app reads it.
 
 Key points (full details in the mod's README):
 
