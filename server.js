@@ -56,7 +56,19 @@ const SERVER = {
   latestVersion: null,         // latest stable on GitHub, filled by collectLatestVersion()
   upToDate: null,              // true/false/null — running >= latest?
   terrariaVersion: '1.4.4.9',
+  // Whether a decoded pixel-sprite set is present (else the page draws category
+  // glyphs). Populated once at startup from the public/sprites/ dirs.
+  sprites: { item: false, buff: false },
 };
+
+// A sprite set is "present" only if the dir exists AND holds at least one file —
+// an empty dir must not switch the page into 404-per-item mode.
+function hasSprites(sub) {
+  try {
+    const dir = path.join(PUBLIC_DIR, 'sprites', sub);
+    return fs.existsSync(dir) && fs.readdirSync(dir).some((f) => /\.(png|webp|jpe?g)$/i.test(f));
+  } catch (_) { return false; }
+}
 
 // ---- live snapshot (served to clients) ------------------------------------
 let snapshot = {
@@ -73,7 +85,7 @@ let snapshot = {
   // list: [{ name, onlineForSec, stats|null }]. statsSource=true when the optional
   // companion mod is feeding playerstats.json (life/gear/inventory); false → names only.
   players: { count: 0, max: WORLD.maxPlayers, list: [], statsSource: false, sampledAt: null },
-  world: Object.assign({ lastSaveAt: null }, WORLD),
+  world: Object.assign({ lastSaveAt: null, live: null }, WORLD),
   server: SERVER,
   mods: MODS,
 };
@@ -149,12 +161,15 @@ function readModStats() {
   try {
     const st = fs.statSync(STATS_FILE);
     if (Date.now() - st.mtimeMs > 60000) return null;   // stale mod output
-    if (st.size > 512 * 1024) return null;              // bound parse cost
+    if (st.size > 2 * 1024 * 1024) return null;         // bound parse cost (full inventories × 8 players)
     const data = JSON.parse(fs.readFileSync(STATS_FILE, 'utf8'));
     const byName = Object.create(null);
     const arr = Array.isArray(data) ? data : (Array.isArray(data.players) ? data.players : []);
     for (const p of arr) if (p && typeof p.name === 'string') byName[p.name] = p;
-    return byName;
+    // Newer mod builds also emit a live world summary (day/night, progression,
+    // downed bosses); older ones don't — tolerate both.
+    const world = (data && typeof data.world === 'object') ? data.world : null;
+    return { byName, world };
   } catch (_) { return null; }
 }
 
@@ -162,6 +177,7 @@ async function collectPlayers() {
   // Only meaningful while the container is up.
   if (!snapshot.online) {
     snapshot.players.count = 0; snapshot.players.list = []; snapshot.players.statsSource = false;
+    snapshot.world.live = null;
     for (const n of Object.keys(sessions)) delete sessions[n];
     return;
   }
@@ -197,12 +213,13 @@ async function collectPlayers() {
   for (const n of names) if (!sessions[n]) sessions[n] = now;
   for (const n of Object.keys(sessions)) if (!names.includes(n)) delete sessions[n];
 
-  const statByName = readModStats();
-  snapshot.players.statsSource = !!statByName;
+  const mod = readModStats();
+  snapshot.players.statsSource = !!mod;
+  snapshot.world.live = mod ? mod.world : null;   // live day/night, progression, downed bosses (or null)
   snapshot.players.list = names.map((n) => ({
     name: n,
     onlineForSec: Math.floor((now - sessions[n]) / 1000),
-    stats: (statByName && statByName[n]) || null,
+    stats: (mod && mod.byName[n]) || null,
   }));
   snapshot.players.count = names.length;
   snapshot.players.sampledAt = new Date().toISOString();
@@ -276,7 +293,7 @@ async function diskLoop() {
 }
 
 // ---- http ------------------------------------------------------------------
-const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' };
+const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.png': 'image/png', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg' };
 
 function serveStatic(req, res) {
   let rel;
@@ -307,6 +324,7 @@ http.createServer((req, res) => {
   serveStatic(req, res);
 }).listen(PORT, HOST, () => {
   console.log(`terraria-status listening on http://${HOST}:${PORT}`);
+  SERVER.sprites = { item: hasSprites('item'), buff: hasSprites('buff') };
   fastLoop(); diskLoop();
   setTimeout(playerLoop, 3000); // let the first inspect land so `online` is known
 

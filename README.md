@@ -91,10 +91,14 @@ to match your server's `TMOD_ENABLEDMODS` (name, Workshop ID, one-line descripti
 Click a player's name and a modal opens. Out of the box it shows **who** they are
 and **how long** they've been online (derived from the console, no mod needed).
 
-To also show **health, mana, defense, equipped gear, inventory and buffs**, run the
-server-side mod in [`character-stats-mod/`](character-stats-mod/) — **it's enabled on
-the live demo**, and a prebuilt `.tmod` + one-command headless build are included. It
-writes `playerstats.json` to the save directory every few seconds and this app reads it.
+To also show a rich character sheet — **alive/dead + respawn timer, death count,
+current biome, wealth (coins), the item in hand, life/mana/defense, full inventory,
+equipped gear + vanity + utility slots, ammo and active buffs** — plus a **live world
+summary** (day/night + in-game clock, progression stage, blood moon / eclipse events),
+run the server-side mod in [`character-stats-mod/`](character-stats-mod/) — **it's
+enabled on the live demo**, and a prebuilt `.tmod` + one-command headless build are
+included. It writes `playerstats.json` to the save directory every few seconds and this
+app reads it.
 
 Key points (full details in the mod's README):
 
@@ -103,10 +107,32 @@ Key points (full details in the mod's README):
 - A vanilla tModLoader server exposes **only names** over its console; there's no
   built-in API for character data, and **tShock's REST API is incompatible with
   tModLoader**. A small server-side mod is the only route.
-- **"Level" isn't a Terraria concept** unless you also run an RPG/leveling mod.
+- **"Level" isn't a Terraria concept** unless you also run an RPG/leveling mod — instead
+  the site shows a **world progression stage** (pré-boss → hardmode → pós-Plantera …).
+- Each **player gets a deterministic pixel portrait** (hashed from their name) instead
+  of a letter, so the roster reads at a glance.
 
 Until the mod is enabled, the modal shows a short note explaining this — the site
 works fully without it.
+
+### Item icons
+
+Items and buffs render as **category glyphs** (weapon / tool / armor / accessory /
+potion / block / material / ammo / coin) framed in the item's **rarity colour** — this
+works offline for **every** item, including modded ones, with no bundled assets.
+
+If you want the **real pixel sprites** on top of that, drop decoded PNGs named by
+vanilla item/buff ID into (both git-ignored):
+
+```
+public/sprites/item/<itemId>.png     # e.g. public/sprites/item/65.png  (Enchanted Sword)
+public/sprites/buff/<buffId>.png
+```
+
+Get them by decoding your own Terraria install's `Content/Images/Item_<id>.xnb` /
+`Buff_<id>.xnb` with any XNB→PNG tool (e.g. **TConvert**). The app detects the folder at
+startup and upgrades each glyph to its sprite automatically (falling back to the glyph
+for any ID it can't find). These are Re-Logic assets — **don't commit them.**
 
 ## Security notes
 

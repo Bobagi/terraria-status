@@ -274,6 +274,69 @@
   .m-note b{color:var(--white)}
   .m-note a{color:var(--cyan)}
 
+  /* ---- character portraits (deterministic per name) ---- */
+  .ritem .av{width:30px;height:30px;overflow:hidden;padding:0;background:none;image-rendering:pixelated}
+  .ritem .av svg{width:100%;height:100%;display:block}
+  .ritem.is-dead .av{filter:grayscale(.75) brightness(.6)}
+  .ritem .rn .rdead{margin-left:6px;font-size:.85rem}
+  .m-av{background:none;padding:0;overflow:hidden;image-rendering:pixelated}
+  .m-av svg{width:100%;height:100%;display:block}
+
+  /* status / progression pills under the modal name */
+  .m-badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .m-pill{font-size:.68rem;font-weight:700;letter-spacing:.03em;padding:3px 9px;border-radius:999px;
+    text-shadow:var(--shadow);border:1px solid rgba(255,255,255,.14);display:inline-flex;gap:5px;align-items:center}
+  .m-pill.alive{background:rgba(116,228,138,.14);color:var(--green)}
+  .m-pill.dead{background:rgba(255,84,112,.18);color:var(--red)}
+  .m-pill.prog{background:rgba(197,139,255,.14);color:var(--purple)}
+  .m-pill.biome{background:rgba(79,214,255,.12);color:var(--cyan)}
+
+  /* ---- item tiles (sprite → category glyph fallback, rarity frame) ---- */
+  .itile-grid{display:flex;flex-wrap:wrap;gap:7px}
+  .itile{position:relative;width:42px;height:42px;border-radius:8px;flex:none;display:grid;place-items:center;
+    background:radial-gradient(circle at 50% 36%,rgba(255,255,255,.07),rgba(0,0,0,.22));
+    border:2px solid var(--rc,#3a3560);
+    box-shadow:inset 1px 1px 0 rgba(255,255,255,.08),inset -2px -2px 0 rgba(0,0,0,.32)}
+  .itile img{width:30px;height:30px;object-fit:contain;image-rendering:pixelated;display:block}
+  .itile .glyph{width:22px;height:22px;display:block;color:var(--rc,#cfc9f0)}
+  .itile .glyph svg{width:100%;height:100%;display:block;fill:currentColor}
+  .itile .stk{position:absolute;right:-3px;bottom:-4px;font-family:ui-monospace,Consolas,monospace;
+    font-size:.6rem;font-weight:700;color:#fff;background:#171430;border:1px solid #4b4a86;border-radius:5px;
+    padding:0 3px;line-height:1.4;text-shadow:1px 1px 0 #000}
+  .slot-wrap{display:flex;flex-direction:column;align-items:center;gap:3px}
+  .slot-wrap .lbl{font-size:.54rem;letter-spacing:.03em;color:var(--gray);text-transform:uppercase;text-shadow:var(--shadow)}
+
+  /* held item */
+  .m-held{display:flex;align-items:center;gap:11px;margin-top:6px;padding:9px 11px;border-radius:8px;
+    background:rgba(255,255,255,.04);border:1px solid #3a3560}
+  .m-held .hn{min-width:0}
+  .m-held .hn b{display:block;font-size:.92rem;word-break:break-word}
+  .m-held .hn small{color:var(--gray);font-size:.66rem;text-transform:uppercase;letter-spacing:.09em}
+
+  /* buff chips */
+  .buff{display:inline-flex;align-items:center;gap:6px;font-size:.74rem;padding:3px 9px 3px 5px;border-radius:999px;
+    background:rgba(255,255,255,.05);border:1px solid #3a3560;text-shadow:var(--shadow)}
+  .buff .bi{width:18px;height:18px;display:grid;place-items:center;flex:none;image-rendering:pixelated}
+  .buff .bi img{width:18px;height:18px;image-rendering:pixelated}
+  .buff .bi svg{width:13px;height:13px;fill:var(--yellow)}
+
+  /* coin wealth */
+  .coins{display:inline-flex;gap:8px;align-items:center;font-family:ui-monospace,Consolas,monospace;font-weight:700}
+  .coins .zero{color:var(--gray);font-weight:600}
+  .coin{display:inline-flex;align-items:center;gap:3px}
+  .coin i{width:11px;height:11px;border-radius:50%;box-shadow:inset -1px -1px 0 rgba(0,0,0,.4),0 0 4px rgba(0,0,0,.3)}
+  .coin.p i{background:radial-gradient(circle at 35% 30%,#fff,#dcdbe8)}
+  .coin.g i{background:radial-gradient(circle at 35% 30%,#ffe98a,#ffcb2e)}
+  .coin.s i{background:radial-gradient(circle at 35% 30%,#eef1f7,#c3c8d3)}
+  .coin.c i{background:radial-gradient(circle at 35% 30%,#f0b47a,#c9743a)}
+
+  /* live world extras */
+  .wlive{margin-top:12px;padding-top:11px;border-top:1px dashed #4b4a86;display:flex;flex-wrap:wrap;gap:8px}
+  .wlive .wp{font-size:.72rem;font-weight:700;padding:5px 10px;border-radius:8px;text-shadow:var(--shadow);
+    background:rgba(255,255,255,.05);border:1px solid #3a3560;display:inline-flex;gap:6px;align-items:center}
+  .wlive .wp.prog{color:var(--purple);border-color:rgba(197,139,255,.35)}
+  .wlive .wp.warn{background:rgba(255,84,112,.16);color:var(--red);border-color:rgba(255,84,112,.45)}
+
   footer{margin-top:32px;text-align:center;color:var(--gray);font-size:.78rem;text-shadow:var(--shadow)}
   footer .live{display:inline-flex;align-items:center;gap:7px}
   footer .live .beacon{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:beat 1.8s ease-in-out infinite}
@@ -365,6 +428,7 @@
           <li><span class="fk">Último save</span><span class="fv" id="lastSave">—</span></li>
           <li><span class="fk">tModLoader</span><span class="fv" style="font-size:.8rem"><span id="ver">—</span> <span id="verBadge" class="vbadge" hidden></span></span></li>
         </ul>
+        <div class="wlive" id="wlive" hidden></div>
         <div class="stale-warn" id="staleWarn" hidden>
           <span class="ic">⚠</span>
           <span><b>Servidor desatualizado.</b> A versão <span id="latestVer" style="font-family:ui-monospace,Consolas,monospace"></span> do tModLoader já saiu; enquanto o servidor não atualiza, quem estiver na versão nova da Steam não consegue entrar. Ele se atualiza sozinho no próximo ciclo (diário).</span>
@@ -486,47 +550,142 @@
     fill.style.width=Math.max(0,Math.min(100,(cur/max)*100))+'%';
     bar.appendChild(fill);w.appendChild(top);w.appendChild(bar);return w;
   }
-  function tagList(items){
-    var l=el('div','m-list');
-    items.forEach(function(it){
-      var t=el('span','m-tag');
-      if(it.pfx)t.appendChild(el('span','pfx',it.pfx+' '));
-      t.appendChild(document.createTextNode(it.name));
-      l.appendChild(t);
-    });
-    return l;
+  // ---- deterministic per-name portrait (pure vector — no user text embedded) ----
+  function hashCode(s){var h=2166136261>>>0;s=(s||'?')+'';for(var i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+  function portraitSVG(name){
+    var h=hashCode(name);
+    var skins=['#f2c9a0','#e8b48a','#c98a5e','#a86c46','#7a4a2b','#f6d5b8'];
+    var hairs=['#3a2a1a','#6b3d1f','#141414','#c9962e','#8a1f1f','#5a5a6a','#d9d2c0','#2a5a8a'];
+    var shirts=['#c0392b','#2980b9','#27ae60','#8e44ad','#d68910','#16a085','#c0447a','#455a94'];
+    var bgs=['#1b2a4a','#2a1b4a','#123a2a','#3a2a12','#0f2f3a','#3a1230'];
+    var skin=skins[h%skins.length],hair=hairs[(h>>3)%hairs.length],shirt=shirts[(h>>7)%shirts.length],bg=bgs[(h>>11)%bgs.length];
+    var st=(h>>13)%3;
+    var hairTop = st===0
+      ? '<rect x="9" y="4" width="14" height="6" fill="'+hair+'"/><rect x="8" y="6" width="2" height="6" fill="'+hair+'"/><rect x="22" y="6" width="2" height="6" fill="'+hair+'"/>'
+      : st===1
+      ? '<rect x="9" y="3" width="14" height="6" fill="'+hair+'"/><rect x="13" y="1" width="6" height="3" fill="'+hair+'"/><rect x="21" y="6" width="3" height="5" fill="'+hair+'"/>'
+      : '<rect x="8" y="4" width="16" height="6" fill="'+hair+'"/><rect x="7" y="8" width="3" height="13" fill="'+hair+'"/><rect x="22" y="8" width="3" height="13" fill="'+hair+'"/>';
+    return '<svg viewBox="0 0 32 32" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">'
+      +'<rect width="32" height="32" fill="'+bg+'"/>'
+      +'<rect x="9" y="22" width="14" height="10" fill="'+shirt+'"/>'
+      +'<rect x="13" y="20" width="6" height="3" fill="'+skin+'"/>'
+      +'<rect x="10" y="8" width="12" height="12" rx="1" fill="'+skin+'"/>'
+      +hairTop
+      +'<rect x="12" y="12" width="2" height="3" fill="#20304a"/><rect x="18" y="12" width="2" height="3" fill="#20304a"/>'
+      +'</svg>';
   }
+
+  // ---- item rarity + category glyphs ----
+  function rarityColor(r){
+    var m={'-1':'#8a8a8a','0':'#e9e6ff','1':'#8aa9ff','2':'#96ff96','3':'#ffb46a','4':'#ff8a8a',
+      '5':'#ff8ad6','6':'#d2a0ff','7':'#b6e84a','8':'#ffd23f','9':'#4fd6ff','10':'#ff3b57','11':'#c58bff'};
+    if(r==null)return '#6b64b8';
+    if(m[r])return m[r];
+    return r>11?'#ff9e42':'#8a8a8a';
+  }
+  var SPARK='<path d="M12 2l2 8 8 2-8 2-2 8-2-8-8-2 8-2z"/>';
+  var GLYPHS={
+    melee:'<path d="M20 4l-9 9-1 3 3-1 9-9z"/><path d="M8 15l-4 4 1 1 4-4z"/>',
+    ranged:'<path d="M6 3a13 13 0 0 1 0 18" fill="none" stroke="currentColor" stroke-width="2"/><line x1="6" y1="3" x2="6" y2="21" stroke="currentColor" stroke-width="1.5"/><line x1="6" y1="12" x2="20" y2="12" stroke="currentColor" stroke-width="1.5"/>',
+    magic:SPARK,
+    summon:'<circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3"/>',
+    weapon:'<path d="M20 4l-9 9-1 3 3-1 9-9z"/><path d="M8 15l-4 4 1 1 4-4z"/>',
+    tool:'<path d="M4 20l7-7" stroke="currentColor" stroke-width="2.4" fill="none"/><path d="M6 5c5-1 9 1 12 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>',
+    armor:'<path d="M12 2l8 3v6c0 6-4 9-8 11-4-2-8-5-8-11V5z"/>',
+    accessory:'<circle cx="12" cy="14" r="6" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M9 8l3-4 3 4z"/>',
+    ammo:'<path d="M4 20L20 4" stroke="currentColor" stroke-width="2" fill="none"/><path d="M20 4h-6M20 4v6" stroke="currentColor" stroke-width="2" fill="none"/>',
+    potion:'<path d="M10 3h4v4l3 8a3 3 0 0 1-3 4H10a3 3 0 0 1-3-4l3-8z"/><rect x="9" y="2" width="6" height="2"/>',
+    block:'<path d="M12 3l8 4v10l-8 4-8-4V7z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3v18M4 7l8 4 8-4" fill="none" stroke="currentColor" stroke-width="1.4"/>',
+    coin:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.5" fill="#171430"/>',
+    material:'<path d="M12 3l6 6-6 12-6-12z"/>'
+  };
+  function glyphEl(kind){var s=el('span','glyph');s.innerHTML='<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'+(GLYPHS[kind]||GLYPHS.material)+'</svg>';return s;}
+  var KIND_LABEL={melee:'Arma corpo-a-corpo',ranged:'Arma à distância',magic:'Arma mágica',summon:'Invocação',weapon:'Arma',tool:'Ferramenta',armor:'Armadura',accessory:'Acessório',ammo:'Munição',potion:'Poção',block:'Bloco',coin:'Moeda',material:'Material'};
+  var spritesOn={item:false,buff:false};
+
+  function itemTile(it){
+    var w=el('span','itile');
+    w.style.setProperty('--rc',rarityColor(it.rarity));
+    var full=(it.prefix?it.prefix+' ':'')+(it.name||'?');
+    w.title=full;w.setAttribute('aria-label',full); // .title/.aria-label are attributes → name stays inert
+    if(spritesOn.item&&it.id!=null&&it.id>=0){
+      var img=document.createElement('img');img.alt='';img.loading='lazy';
+      img.src='/sprites/item/'+encodeURIComponent(it.id)+'.png';
+      img.onerror=function(){if(img.parentNode)img.parentNode.replaceChild(glyphEl(it.kind),img);};
+      w.appendChild(img);
+    }else{w.appendChild(glyphEl(it.kind));}
+    if(it.stack>1)w.appendChild(el('span','stk','×'+it.stack));
+    return w;
+  }
+  function tileGrid(items){var g=el('div','itile-grid');items.forEach(function(it){g.appendChild(itemTile(it));});return g;}
+  function buffChip(b){
+    var c=el('span','buff'),bi=el('span','bi');
+    if(spritesOn.buff&&b.id!=null&&b.id>=0){
+      var img=document.createElement('img');img.alt='';img.loading='lazy';
+      img.src='/sprites/buff/'+encodeURIComponent(b.id)+'.png';
+      img.onerror=function(){bi.innerHTML='<svg viewBox="0 0 24 24">'+SPARK+'</svg>';};
+      bi.appendChild(img);
+    }else{bi.innerHTML='<svg viewBox="0 0 24 24">'+SPARK+'</svg>';}
+    c.appendChild(bi);c.appendChild(document.createTextNode(b.name||''));
+    return c;
+  }
+  function coinsEl(w){
+    var box=el('span','coins');
+    if(!w||(!w.plat&&!w.gold&&!w.silver&&!w.copper)){box.appendChild(el('span','zero','sem moedas'));return box;}
+    [['p',w.plat],['g',w.gold],['s',w.silver],['c',w.copper]].forEach(function(c){
+      if(!c[1])return;var e=el('span','coin '+c[0]);e.appendChild(el('i'));e.appendChild(document.createTextNode(c[1]));box.appendChild(e);
+    });
+    return box;
+  }
+  function pill(cls,txt){var p=el('span','m-pill '+cls);p.textContent=txt;return p;}
+  function wpill(cls,txt){var s=el('span','wp'+(cls?' '+cls:''));s.textContent=txt;return s;}
+
   function renderStats(st){
     var f=document.createDocumentFragment();
-    if(st.lifeMax)f.appendChild(barEl('Vida','life',st.life,st.lifeMax));
+    if(st.lifeMax)f.appendChild(barEl('Vida','life',st.dead?0:st.life,st.lifeMax));
     if(st.manaMax)f.appendChild(barEl('Mana','mana',st.mana,st.manaMax));
     var grid=el('div','m-grid');
-    [['Defesa',st.defense],['Modo',st.difficulty],['Itens no inventário',st.inventoryCount]].forEach(function(kv){
-      if(kv[1]==null||kv[1]===''||typeof kv[1]==='object')return; // skip non-primitives (never render [object Object])
-      var c=el('div','m-stat');c.appendChild(el('div','k',kv[0]));c.appendChild(el('div','v',kv[1]));grid.appendChild(c);
-    });
+    function stat(k,v){if(v==null||v===''||typeof v==='object')return;var c=el('div','m-stat');c.appendChild(el('div','k',k));c.appendChild(el('div','v',v));grid.appendChild(c);}
+    stat('Defesa',st.defense);stat('Modo',st.difficulty);
+    if(st.deaths!=null)stat('Mortes',st.deaths);
+    stat('Itens no inventário',st.inventoryCount);
     if(grid.childElementCount)f.appendChild(grid);
-    if(st.equips&&st.equips.length){f.appendChild(el('div','m-sec-title','Equipado'));
-      f.appendChild(tagList(st.equips.map(function(e){return {pfx:e.prefix||'',name:e.name};})));}
-    if(st.buffs&&st.buffs.length){f.appendChild(el('div','m-sec-title','Buffs ativos'));
-      f.appendChild(tagList(st.buffs.map(function(b){return {name:b};})));}
-    if(st.inventory&&st.inventory.length){f.appendChild(el('div','m-sec-title','Itens'));
-      f.appendChild(tagList(st.inventory.map(function(i){return {name:(i.stack>1?(i.name+' ×'+i.stack):i.name)};})));}
+    if(st.wealth){f.appendChild(el('div','m-sec-title','Riqueza'));var wb=el('div');wb.appendChild(coinsEl(st.wealth));f.appendChild(wb);}
+    if(st.held){
+      f.appendChild(el('div','m-sec-title','Na mão'));
+      var h=el('div','m-held');h.appendChild(itemTile(st.held));
+      var hn=el('div','hn');hn.appendChild(el('b',null,(st.held.prefix?st.held.prefix+' ':'')+st.held.name));
+      hn.appendChild(el('small',null,KIND_LABEL[st.held.kind]||'Item'));h.appendChild(hn);f.appendChild(h);
+    }
+    function section(title,arr){if(arr&&arr.length){f.appendChild(el('div','m-sec-title',title));f.appendChild(tileGrid(arr));}}
+    section('Equipado',st.equips);section('Vaidade',st.vanity);section('Utilitários',st.misc);
+    section('Munição',st.ammo);section('Inventário',st.inventory);
+    if(st.buffs&&st.buffs.length){
+      f.appendChild(el('div','m-sec-title','Buffs ativos'));var bl=el('div','m-list');
+      st.buffs.forEach(function(b){bl.appendChild(buffChip(typeof b==='string'?{name:b,id:-1}:b));});f.appendChild(bl);
+    }
     return f;
   }
   function fillModal(p){
-    $('mAv').textContent=(p.name||'?').trim().charAt(0).toUpperCase();
+    $('mAv').innerHTML=portraitSVG(p.name);
     $('mTitle').textContent=p.name;
     var sess=$('mSession');sess.textContent='';
     sess.appendChild(el('span','dotg'));
     sess.appendChild(document.createTextNode('online '+(p.onlineForSec!=null?('há '+fmtDur(p.onlineForSec)):'agora')));
     var body=$('mBody');body.textContent='';
-    if(p.stats){body.appendChild(renderStats(p.stats));}
-    else{
+    var st=p.stats;
+    if(st){
+      var badges=el('div','m-badges');
+      if(st.dead)badges.appendChild(pill('dead','💀 Morto'+(st.respawnSec?(' · volta em '+st.respawnSec+'s'):'')));
+      else badges.appendChild(pill('alive','● Vivo'));
+      if(st.biome)badges.appendChild(pill('biome','📍 '+st.biome));
+      body.appendChild(badges);
+      body.appendChild(renderStats(st));
+    }else{
       var note=el('div','m-note');
       note.innerHTML='<b>Vida, mana, defesa, equipamentos e inventário</b> aparecem aqui quando o '+
-        'mod opcional de stats está ativo no servidor (todos os jogadores precisam dele). Sem ele, o '+
-        'servidor só informa <b>quem</b> está online e há quanto tempo. Como ativar: veja o '+
+        'mod de stats está ativo no servidor. Ele é <b>server-side</b> — você <b>não</b> precisa dele pra entrar. '+
+        'Sem ele, o servidor só informa <b>quem</b> está online e há quanto tempo. Detalhes no '+
         '<a href="https://github.com/Bobagi/terraria-status#character-stats-optional" target="_blank" rel="noopener">repositório</a>.';
       body.appendChild(note);
     }
@@ -573,9 +732,12 @@
       empty.hidden=true;hint.hidden=false;
       list.forEach(function(p){
         var li=document.createElement('li');
-        var btn=el('button','ritem');btn.type='button';
-        btn.appendChild(el('span','av',(p.name||'?').trim().charAt(0).toUpperCase()));
-        btn.appendChild(el('span','rn',p.name));
+        var dead=p.stats&&p.stats.dead;
+        var btn=el('button','ritem'+(dead?' is-dead':''));btn.type='button';
+        var av=el('span','av');av.innerHTML=portraitSVG(p.name);btn.appendChild(av);
+        var rn=el('span','rn');rn.appendChild(document.createTextNode(p.name));
+        if(dead)rn.appendChild(el('span','rdead','💀'));
+        btn.appendChild(rn);
         btn.appendChild(el('span','chev','›'));
         btn.addEventListener('click',function(){openModal(p.name);});
         li.appendChild(btn);roster.appendChild(li);
@@ -613,6 +775,22 @@
     else if(s.upToDate===false){badge.hidden=false;badge.className='vbadge stale';badge.textContent='⚠ desatualizada';
       warn.hidden=false;$('latestVer').textContent='v'+(s.latestVersion||'?');}
     else{badge.hidden=true;warn.hidden=true;}
+
+    // sprite availability (glyphs unless a decoded sprite set is present)
+    if(s.sprites){spritesOn.item=!!s.sprites.item;spritesOn.buff=!!s.sprites.buff;}
+
+    // live world extras (day/night, progression, events) from the optional mod
+    var wl=$('wlive');wl.textContent='';
+    var lw=d.world&&d.world.live;
+    if(lw){
+      wl.hidden=false;
+      wl.appendChild(wpill('prog','⚔ '+(lw.progression||'—')));
+      wl.appendChild(wpill('',(lw.dayTime?'☀ Dia':'🌙 Noite')+(lw.timeText?(' · '+lw.timeText):'')));
+      if(lw.bloodMoon)wl.appendChild(wpill('warn','🩸 Lua de Sangue'));
+      if(lw.eclipse)wl.appendChild(wpill('warn','🌑 Eclipse Solar'));
+      if(lw.pumpkinMoon)wl.appendChild(wpill('warn','🎃 Lua Abóbora'));
+      if(lw.snowMoon)wl.appendChild(wpill('warn','❄ Lua Gelada'));
+    }else{wl.hidden=true;}
 
     // mods (once)
     var mbox=$('mods');

@@ -6,3 +6,6 @@ node_modules/
 # tModLoader mod build outputs (keep the source + the prebuilt .tmod we ship)
 character-stats-mod/bin/
 character-stats-mod/obj/
+
+# Decoded item/buff pixel sprites — optional local drop-in (Re-Logic assets, never commit)
+public/sprites/
