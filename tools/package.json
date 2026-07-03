@@ -1,0 +1,9 @@
+{
+  "name": "terraria-status-tools",
+  "private": true,
+  "type": "module",
+  "description": "Offline build tools for terraria-status (kept out of the zero-dep runtime server).",
+  "dependencies": {
+    "xnb": "1.3.0-a"
+  }
+}

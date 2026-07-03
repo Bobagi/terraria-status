@@ -121,18 +121,23 @@ Items and buffs render as **category glyphs** (weapon / tool / armor / accessory
 potion / block / material / ammo / coin) framed in the item's **rarity colour** — this
 works offline for **every** item, including modded ones, with no bundled assets.
 
-If you want the **real pixel sprites** on top of that, drop decoded PNGs named by
-vanilla item/buff ID into (both git-ignored):
+If you want the **real pixel sprites** on top of that, decode them from a Terraria
+install's `Content/Images` with the included builder — it reads the compressed `.xnb`
+directly (no TConvert needed):
 
-```
-public/sprites/item/<itemId>.png     # e.g. public/sprites/item/65.png  (Enchanted Sword)
-public/sprites/buff/<buffId>.png
+```bash
+cd tools && npm install
+node build-sprites.mjs /path/to/Content/Images   # writes public/sprites/{item,buff}/<id>.png
+pm2 restart terraria-status                       # re-detect the sprite set
 ```
 
-Get them by decoding your own Terraria install's `Content/Images/Item_<id>.xnb` /
-`Buff_<id>.xnb` with any XNB→PNG tool (e.g. **TConvert**). The app detects the folder at
-startup and upgrades each glyph to its sprite automatically (falling back to the glyph
-for any ID it can't find). These are Re-Logic assets — **don't commit them.**
+The app detects `public/sprites/` at startup and upgrades each glyph to its sprite
+automatically, falling back to the glyph for any ID it can't find (incl. all modded
+items). It also accepts the original `Item_<id>.png` / `Buff_<id>.png` names.
+
+> Use the **tModLoader client** install's `Content/Images` for full coverage — the
+> *dedicated server's* copy only ships ~332 (mostly banner) sprites. `public/sprites/`
+> is git-ignored: these are Re-Logic assets — **never commit them.**
 
 ## Security notes
 
