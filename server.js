@@ -21,7 +21,7 @@ const PORT = parseInt(process.env.STATUS_PORT || '3063', 10);
 const HOST = process.env.STATUS_BIND || '127.0.0.1'; // keep localhost; expose via reverse proxy
 const CONTAINER = process.env.TMOD_CONTAINER || 'tmodloader';
 const DATA_DIR = process.env.TMOD_DATA_DIR || '/opt/terraria-tmodloader/data/tModLoader';
-const WORLD_NAME = process.env.TMOD_WORLD || 'Bobagi';
+const WORLD_NAME = process.env.TMOD_WORLD || 'Hyperborea';
 const WORLD_FILE = path.join(DATA_DIR, 'Worlds', WORLD_NAME + '.wld');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 // Optional: written by the companion server-side mod (see optional-serverside-mod/).
