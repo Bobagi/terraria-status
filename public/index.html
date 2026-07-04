@@ -834,13 +834,14 @@
     sky.phase=live.moonPhase||0;sky.last=performance.now();
     renderSky();
   }
-  // Advance the clock locally between 5 s server updates so the sun/moon glide.
-  // Day and night pass at different real-world rates in Terraria (15h in ~13:45,
-  // 9h in ~10:45), so the tick rate switches at dawn/dusk. Re-synced every fetch.
+  // Advance the clock locally so the sun/moon glide (seeded once, not re-synced).
+  // Terraria's day is LONGER than its night: 15 in-game hours in 900 s real (15 min,
+  // dayLength 54000 ticks) vs 9 hours in 540 s real (9 min, nightLength 32400), so the
+  // per-second rate switches at dawn/dusk (4:30) and dusk (19:30).
   function skyTick(ts){
     if(sky.hour!=null&&!reducedMotion){
       var dt=(ts-sky.last)/1000;sky.last=ts;
-      var rate=(sky.hour>=4.5&&sky.hour<19.5)?(15/825):(9/645);
+      var rate=(sky.hour>=4.5&&sky.hour<19.5)?(15/900):(9/540);
       sky.hour=(sky.hour+rate*dt)%24;renderSky();
     }else{sky.last=ts;}
     requestAnimationFrame(skyTick);
