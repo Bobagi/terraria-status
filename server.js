@@ -30,13 +30,13 @@ const STATS_FILE = process.env.TMOD_STATS_FILE || path.join(DATA_DIR, 'playersta
 
 // ---- static, subject-known metadata --------------------------------------
 const MODS = [
-  { id: '2619954303', name: 'Recipe Browser',   rarity: 'blue',   desc: 'Search every recipe and see what an item is used to craft.' },
-  { id: '2563309347', name: 'Magic Storage',    rarity: 'purple', desc: 'One networked storage hub — deposit, search and auto-craft from it.' },
-  { id: '2669644269', name: 'Boss Checklist',   rarity: 'orange', desc: 'Progression checklist: bosses, order, drops and summon items.' },
-  { id: '2687866031', name: 'Census',           rarity: 'green',  desc: 'Town NPC checklist — shows what each townsfolk needs to move in.' },
-  { id: '2599842771', name: 'AlchemistNPC Lite', rarity: 'lime',  desc: 'Buy potions, buffs and travel — quality-of-life alchemist NPCs.' },
-  { id: '2565639705', name: 'Ore Excavator',    rarity: 'yellow', desc: 'Vein-mine: break a whole ore vein or tree in one swing.' },
-  { id: '2908170107', name: 'SerousCommonLib',  rarity: 'gray',   desc: 'Support library — Magic Storage needs it to work (auto-installs with it).' },
+  { id: '2619954303', name: 'Recipe Browser',   rarity: 'blue',   desc: 'Busque qualquer receita e veja onde cada item é usado para criar.' },
+  { id: '2563309347', name: 'Magic Storage',    rarity: 'purple', desc: 'Um baú central em rede — deposite, pesquise e crie direto do estoque.' },
+  { id: '2669644269', name: 'Boss Checklist',   rarity: 'orange', desc: 'Checklist de progressão: bosses, ordem, drops e itens de invocação.' },
+  { id: '2687866031', name: 'Census',           rarity: 'green',  desc: 'Checklist de NPCs — mostra o que cada morador precisa para aparecer.' },
+  { id: '2599842771', name: 'AlchemistNPC Lite', rarity: 'lime',  desc: 'NPCs que vendem poções, buffs e viagem — puro quality-of-life.' },
+  { id: '2565639705', name: 'Ore Excavator',    rarity: 'yellow', desc: 'Vein-mine: quebre um filão de minério ou uma árvore inteira num golpe.' },
+  { id: '2908170107', name: 'SerousCommonLib',  rarity: 'gray',   desc: 'Biblioteca de suporte — o Magic Storage precisa dela (instala junto).' },
   { id: '3021379176', name: 'Steam Achievement Fix', rarity: 'cyan', desc: 'As conquistas que você desbloqueia aqui contam no seu perfil do Terraria na Steam — automático, o servidor já exige o mod.' },
 ];
 
