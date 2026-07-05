@@ -37,6 +37,7 @@ const MODS = [
   { id: '2599842771', name: 'AlchemistNPC Lite', rarity: 'lime',  desc: 'Buy potions, buffs and travel — quality-of-life alchemist NPCs.' },
   { id: '2565639705', name: 'Ore Excavator',    rarity: 'yellow', desc: 'Vein-mine: break a whole ore vein or tree in one swing.' },
   { id: '2908170107', name: 'SerousCommonLib',  rarity: 'gray',   desc: 'Support library — Magic Storage needs it to work (auto-installs with it).' },
+  { id: '3021379176', name: 'Steam Achievement Fix', rarity: 'cyan', desc: 'As conquistas que você desbloqueia aqui contam no seu perfil do Terraria na Steam — automático, o servidor já exige o mod.' },
 ];
 
 const WORLD = {
