@@ -19,6 +19,8 @@ const { execFile } = require('child_process');
 // ---- deploy config (override via environment; defaults match bobagi.space) --
 const PORT = parseInt(process.env.STATUS_PORT || '3063', 10);
 const HOST = process.env.STATUS_BIND || '127.0.0.1'; // keep localhost; expose via reverse proxy
+// Public origin, used by robots.txt / sitemap.xml (SEO). Override when self-hosting.
+const SITE_ORIGIN = (process.env.SITE_ORIGIN || 'https://terraria.bobagi.space').replace(/\/+$/, '');
 const CONTAINER = process.env.TMOD_CONTAINER || 'tmodloader';
 const DATA_DIR = process.env.TMOD_DATA_DIR || '/opt/terraria-tmodloader/data/tModLoader';
 const WORLD_NAME = process.env.TMOD_WORLD || 'Hyperborea';
@@ -322,6 +324,23 @@ http.createServer((req, res) => {
     return res.end(JSON.stringify(snapshot));
   }
   if (req.url === '/healthz') { res.writeHead(200); return res.end('ok'); }
+  // SEO: página única, então sitemap e robots são estáticos e curtos.
+  // /api/ fora do índice (JSON, muda a cada poll — não é conteúdo de busca).
+  if (req.url === '/robots.txt') {
+    res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
+    return res.end(`User-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: ${SITE_ORIGIN}/sitemap.xml\n`);
+  }
+  if (req.url === '/sitemap.xml') {
+    res.writeHead(200, { 'content-type': 'application/xml; charset=utf-8' });
+    return res.end(
+      '<?xml version="1.0" encoding="UTF-8"?>\n'
+      + '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+      + `  <url>\n    <loc>${SITE_ORIGIN}/</loc>\n`
+      + `    <lastmod>${new Date().toISOString().slice(0, 10)}</lastmod>\n`
+      + '    <changefreq>hourly</changefreq>\n    <priority>1.0</priority>\n  </url>\n'
+      + '</urlset>\n'
+    );
+  }
   serveStatic(req, res);
 }).listen(PORT, HOST, () => {
   console.log(`terraria-status listening on http://${HOST}:${PORT}`);
