@@ -1,6 +1,6 @@
 'use strict';
 /*
- * terraria-status — live status page for the tModLoader dedicated server.
+ * terraria-status, live status page for the tModLoader dedicated server.
  *
  * Zero external deps. Polls Docker on timers and serves a cached JSON snapshot
  * at /api/status plus the static page. Runs on the HOST (under PM2) so it can
@@ -8,7 +8,7 @@
  *
  * SECURITY: the server console log contains the world password. This process
  * only ever extracts the `playing` command's player list from the logs and
- * strips IPs — it must NEVER surface raw log lines or the password to clients.
+ * strips IPs, it must NEVER surface raw log lines or the password to clients.
  */
 
 const http = require('http');
@@ -33,13 +33,13 @@ const STATS_FILE = process.env.TMOD_STATS_FILE || path.join(DATA_DIR, 'playersta
 // ---- static, subject-known metadata --------------------------------------
 const MODS = [
   { id: '2619954303', name: 'Recipe Browser',   rarity: 'blue',   desc: 'Busque qualquer receita e veja onde cada item é usado para criar.' },
-  { id: '2563309347', name: 'Magic Storage',    rarity: 'purple', desc: 'Um baú central em rede — deposite, pesquise e crie direto do estoque.' },
+  { id: '2563309347', name: 'Magic Storage',    rarity: 'purple', desc: 'Um baú central em rede: deposite, pesquise e crie direto do estoque.' },
   { id: '2669644269', name: 'Boss Checklist',   rarity: 'orange', desc: 'Checklist de progressão: bosses, ordem, drops e itens de invocação.' },
-  { id: '2687866031', name: 'Census',           rarity: 'green',  desc: 'Checklist de NPCs — mostra o que cada morador precisa para aparecer.' },
-  { id: '2599842771', name: 'AlchemistNPC Lite', rarity: 'lime',  desc: 'NPCs que vendem poções, buffs e viagem — puro quality-of-life.' },
+  { id: '2687866031', name: 'Census',           rarity: 'green',  desc: 'Checklist de NPCs: mostra o que cada morador precisa para aparecer.' },
+  { id: '2599842771', name: 'AlchemistNPC Lite', rarity: 'lime',  desc: 'NPCs que vendem poções, buffs e viagem, puro quality-of-life.' },
   { id: '2565639705', name: 'Ore Excavator',    rarity: 'yellow', desc: 'Vein-mine: quebre um filão de minério ou uma árvore inteira num golpe.' },
-  { id: '2908170107', name: 'SerousCommonLib',  rarity: 'gray',   desc: 'Biblioteca de suporte — o Magic Storage precisa dela (instala junto).' },
-  { id: '3021379176', name: 'Steam Achievement Fix', rarity: 'cyan', desc: 'As conquistas que você desbloqueia aqui contam no seu perfil do Terraria na Steam — automático, o servidor já exige o mod.' },
+  { id: '2908170107', name: 'SerousCommonLib',  rarity: 'gray',   desc: 'Biblioteca de suporte: o Magic Storage precisa dela (instala junto).' },
+  { id: '3021379176', name: 'Steam Achievement Fix', rarity: 'cyan', desc: 'As conquistas que você desbloqueia aqui contam no seu perfil do Terraria na Steam, automático, o servidor já exige o mod.' },
 ];
 
 const WORLD = {
@@ -50,21 +50,21 @@ const WORLD = {
 };
 
 const SERVER = {
-  host: process.env.SERVER_HOST || 'bobagi.space', // domain players type — friendlier than the raw IP
+  host: process.env.SERVER_HOST || 'bobagi.space', // SEO/display only; players join by `ip` (domain is Cloudflare-proxied, HTTP only)
   ip: process.env.SERVER_IP || '46.202.144.75',
   port: parseInt(process.env.SERVER_PORT || '7777', 10),
   passwordProtected: true,
   steamAppId: 1281930,         // tModLoader on Steam (steam://run/<id> opens it)
   tmodloaderVersion: null,     // running version, filled live by collectVersion()
   latestVersion: null,         // latest stable on GitHub, filled by collectLatestVersion()
-  upToDate: null,              // true/false/null — running >= latest?
+  upToDate: null,              // true/false/null, running >= latest?
   terrariaVersion: '1.4.4.9',
   // Whether a decoded pixel-sprite set is present (else the page draws category
   // glyphs). Populated once at startup from the public/sprites/ dirs.
   sprites: { item: false, buff: false, npc: false },
 };
 
-// A sprite set is "present" only if the dir exists AND holds at least one file —
+// A sprite set is "present" only if the dir exists AND holds at least one file -
 // an empty dir must not switch the page into 404-per-item mode.
 function hasSprites(sub) {
   try {
@@ -170,7 +170,7 @@ function readModStats() {
     const arr = Array.isArray(data) ? data : (Array.isArray(data.players) ? data.players : []);
     for (const p of arr) if (p && typeof p.name === 'string') byName[p.name] = p;
     // Newer mod builds also emit a live world summary (day/night, progression,
-    // downed bosses); older ones don't — tolerate both.
+    // downed bosses); older ones don't, tolerate both.
     const world = (data && typeof data.world === 'object') ? data.world : null;
     return { byName, world };
   } catch (_) { return null; }
@@ -186,7 +186,7 @@ async function collectPlayers() {
   }
   await run('docker', ['exec', CONTAINER, 'inject', 'playing']);
   await new Promise((r) => setTimeout(r, 900));
-  // Read the console straight from the tmux pane — fast and clean, unlike
+  // Read the console straight from the tmux pane, fast and clean, unlike
   // `docker logs --tail` which gets slow once the json log grows large.
   const { err, out } = await run('docker', ['exec', CONTAINER, 'tmux', 'capture-pane', '-p', '-S', '-60']);
   if (err) return;
@@ -255,7 +255,7 @@ function cmpVer(a, b) {
 }
 
 async function collectLatestVersion() {
-  // GitHub latest stable tag (unauthenticated: 60 req/h — this runs every 5 min).
+  // GitHub latest stable tag (unauthenticated: 60 req/h, this runs every 5 min).
   try {
     const resp = await fetch('https://api.github.com/repos/tModLoader/tModLoader/releases/latest', {
       headers: { 'user-agent': 'terraria-status', accept: 'application/vnd.github+json' },
@@ -304,7 +304,7 @@ function serveStatic(req, res) {
   catch (_) { res.writeHead(400); return res.end('bad request'); } // malformed %-escape must not crash the process
   if (rel === '/') rel = '/index.html';
   const file = path.normalize(path.join(PUBLIC_DIR, rel));
-  // Prefix check WITH the separator — bare startsWith(PUBLIC_DIR) would also
+  // Prefix check WITH the separator, bare startsWith(PUBLIC_DIR) would also
   // match a sibling like public-evil/.
   if (!file.startsWith(PUBLIC_DIR + path.sep)) { res.writeHead(403); return res.end('forbidden'); }
   fs.readFile(file, (err, buf) => {
@@ -325,7 +325,7 @@ http.createServer((req, res) => {
   }
   if (req.url === '/healthz') { res.writeHead(200); return res.end('ok'); }
   // SEO: página única, então sitemap e robots são estáticos e curtos.
-  // /api/ fora do índice (JSON, muda a cada poll — não é conteúdo de busca).
+  // /api/ fora do índice (JSON, muda a cada poll, não é conteúdo de busca).
   if (req.url === '/robots.txt') {
     res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
     return res.end(`User-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: ${SITE_ORIGIN}/sitemap.xml\n`);
