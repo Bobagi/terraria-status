@@ -46,6 +46,7 @@ const MODS = [
   { id: '2565639705', name: 'Ore Excavator',    rarity: 'yellow', desc: 'Vein-mine: quebre um filão de minério ou uma árvore inteira num golpe.' },
   { id: '2908170107', name: 'SerousCommonLib',  rarity: 'gray',   desc: 'Biblioteca de suporte: o Magic Storage precisa dela (instala junto).' },
   { id: '3021379176', name: 'Steam Achievement Fix', rarity: 'cyan', desc: 'As conquistas que você desbloqueia aqui contam no seu perfil do Terraria na Steam, automático, o servidor já exige o mod.' },
+  { id: '2570931073', name: "Fargo's Mutant Mod", rarity: 'red', desc: 'Construção instantânea (Instabridge, InstaHouse, Instavator) e o NPC Mutant, que vende invocações de bosses.' },
 ];
 
 const WORLD = {
