@@ -114,6 +114,13 @@ PATH=/tmp/sdk:$PATH HOME=/tmp dotnet build -c Release
 # → StatusExport.tmod lands in ~/.local/share/Terraria/tModLoader/Mods/
 ```
 
+## Reconnecting after a dropped connection
+
+A dead connection normally holds its name for about two minutes ("X is already on this
+server"). `GhostSessions.cs` ends the old session as soon as the same name connects again,
+if the newcomer has the same IP or the old session has been silent for 5 seconds. A player
+who is really online can't be pushed out from another IP.
+
 ## Deploy (Docker server from the guide)
 
 The [`jacobsmile/tmodloader1.4`](https://github.com/JACOBSMILE/tmodloader1.4) image
