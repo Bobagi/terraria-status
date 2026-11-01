@@ -1,0 +1,179 @@
+diff --git a/index.html b/index.html
+index b3901f2..a323be2 100644
+--- a/index.html
++++ b/index.html
+@@ -17,13 +17,6 @@
+ <body style="margin: 0; overflow: hidden; height: 100vh; height: 100dvh; box-sizing: border-box;">
+   <div id="root" style="height: 100%;"></div>
+   <script type="module" src="/src/main.tsx"></script>
+-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-P6BJH8276R"></script>
+-  <script>
+-    window.dataLayer = window.dataLayer || [];
+-    function gtag() { dataLayer.push(arguments); }
+-    gtag('js', new Date());
+-    gtag('config', 'G-P6BJH8276R');
+-  </script>
+ </body>
+ 
+ </html>
+\ No newline at end of file
+diff --git a/public/about.html b/public/about.html
+index c366c1a..96c4202 100644
+--- a/public/about.html
++++ b/public/about.html
+@@ -125,26 +125,11 @@
+           </a>
+         </p>
+       </div>
+-      <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4263195580051724"
+-        crossorigin="anonymous"></script>
+-      <!-- TerraMap Responsive -->
+-      <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-4263195580051724" data-ad-slot="9553900295"
+-        data-ad-format="auto"></ins>
+-      <script>
+-        (adsbygoogle = window.adsbygoogle || []).push({});
+-      </script>
+     </div>
+   </nav>
+ 
+   <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+   <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-P6BJH8276R"></script>
+-  <script>
+-    window.dataLayer = window.dataLayer || [];
+-    function gtag() { dataLayer.push(arguments); }
+-    gtag('js', new Date());
+-    gtag('config', 'G-P6BJH8276R');
+-  </script>
+ </body>
+ 
+ </html>
+\ No newline at end of file
+diff --git a/src/AppContent.tsx b/src/AppContent.tsx
+index ea6db3d..df47a7c 100644
+--- a/src/AppContent.tsx
++++ b/src/AppContent.tsx
+@@ -175,6 +175,7 @@ export default function AppContent() {
+   });
+ 
+   const handleWorldFileSelect = useCallback((f: File) => {
++    usingServerWorld.current = false;
+     setWorldFile(f);
+     setMapFile(null);
+     setPlayerMap(null);
+@@ -184,6 +185,34 @@ export default function AppContent() {
+ 
+   const { isDragging, invalidDrop, dragProps } = useFileDrop(handleWorldFileSelect);
+ 
++  // terraria.bobagi.space: opens the server's live world instead of asking for a file.
++  const [fetchingServerWorld, setFetchingServerWorld] = useState(true);
++  const usingServerWorld = useRef(true);
++
++  const loadServerWorld = useCallback(async () => {
++    setFetchingServerWorld(true);
++    try {
++      const res = await fetch(`${__BASE_URL__}mundo.wld`, { cache: 'no-cache' });
++      if (!res.ok) throw new Error(`HTTP ${res.status}`);
++      const name = `${res.headers.get('x-world-name') ?? 'mundo'}.wld`;
++      handleWorldFileSelect(new File([await res.blob()], name));
++      usingServerWorld.current = true;
++    } catch (err) {
++      notificationRef.current?.error({
++        key: 'server-world',
++        title: 'Não foi possível carregar o mundo do servidor',
++        description: String(err),
++        placement: 'bottomRight',
++      });
++    } finally {
++      setFetchingServerWorld(false);
++    }
++  }, [handleWorldFileSelect]);
++
++  // Once on mount: loadServerWorld changes identity on every render.
++  // eslint-disable-next-line react-hooks/exhaustive-deps
++  useEffect(() => { void loadServerWorld(); }, []);
++
+   useEffect(() => {
+     if (worldFile?.name) {
+       document.title = `${worldFile.name} | TerraMap`;
+@@ -225,6 +254,10 @@ export default function AppContent() {
+   }, [handleWorldFileSelect, setPlayerMap, t]);
+ 
+   const handleReloadWorld = useCallback(async () => {
++    if (usingServerWorld.current) {
++      await loadServerWorld();
++      return;
++    }
+     if (worldFile) {
+       setSelectedBlocks([]);
+       loadWorldFile(worldFile);
+@@ -236,7 +269,7 @@ export default function AppContent() {
+         notificationRef.current?.info({ key: 'explored', title: t('explored_percent', { percent: playerMap?.percent.toLocaleString(undefined, { style: 'percent' }) }), placement: 'bottomRight' });
+       }
+     }
+-  }, [worldFile, mapFile, loadWorldFile, setPlayerMap, notificationRef, t]);
++  }, [worldFile, mapFile, loadWorldFile, loadServerWorld, setPlayerMap, notificationRef, t]);
+ 
+   const handleSaveImage = useCallback(() => {
+     const w = worldRef.current;
+@@ -339,7 +372,7 @@ export default function AppContent() {
+                 background: colorBgContainer,
+                 overflow: 'auto',
+               }}>
+-              {!world && !isWorldLoading && <HelpPanel
++              {!world && !isWorldLoading && !fetchingServerWorld && <HelpPanel
+                 worldFileInputRef={worldFileInputRef}
+                 directoryInputRef={directoryInputRef}
+                 checkingNative={checkingNativeAccess}
+diff --git a/src/components/Navbar.tsx b/src/components/Navbar.tsx
+index e5fce93..4519e18 100644
+--- a/src/components/Navbar.tsx
++++ b/src/components/Navbar.tsx
+@@ -134,6 +134,7 @@ export function Navbar({
+   return (
+     <>
+       <Space wrap align="center">
++        <a href="/" style={{ marginRight: 8 }}>← Status</a>
+         <span style={{ marginRight: 8, fontFamily: 'inherit' }}>TerraMap</span>
+ 
+         <Space.Compact>
+diff --git a/src/components/StatusBar.tsx b/src/components/StatusBar.tsx
+index fc291eb..e4130f6 100644
+--- a/src/components/StatusBar.tsx
++++ b/src/components/StatusBar.tsx
+@@ -1,7 +1,8 @@
+ import { Space, Spin, theme } from 'antd';
+ import { useEffect, useRef, useState } from 'react';
+ import { useTranslation } from 'react-i18next';
+-import { isNative } from '../lib/native';
++// terraria.bobagi.space: upstream's AdSense banner is web-only, so report "native" to drop it.
++const isNative = () => true;
+ import type { Status } from '../lib/status';
+ import type { WorldPosition } from '../lib/tileDisplayFields';
+ import type { WorldTile } from '../types/settings';
+diff --git a/src/hooks/useThemeName.ts b/src/hooks/useThemeName.ts
+index 1dafecd..6e8ec69 100644
+--- a/src/hooks/useThemeName.ts
++++ b/src/hooks/useThemeName.ts
+@@ -43,7 +43,7 @@ export function useThemeName() {
+ 
+   // user theme preference from local storage
+   const userThemeValue = getThemeNameFromLocalStorage();
+-  const userThemeName: ThemeNames = userThemeValue === 'dark' ? 'dark' : userThemeValue === 'light' ? 'light' : 'auto';
++  const userThemeName: ThemeNames = userThemeValue === 'light' ? 'light' : userThemeValue === 'auto' ? 'auto' : 'dark';
+ 
+   // final theme name to use
+   const finalThemeName = userThemeName;
+diff --git a/src/i18n/i18n.ts b/src/i18n/i18n.ts
+index cbc135d..71cc9af 100644
+--- a/src/i18n/i18n.ts
++++ b/src/i18n/i18n.ts
+@@ -14,7 +14,7 @@ void i18n.use(initReactI18next).init({
+     'zh-CN': { translation: zhCN },
+     'pt-BR': { translation: ptBR },
+   },
+-  lng: localStorage.getItem('language') ?? navigator.language ?? 'en',
++  lng: localStorage.getItem('language') ?? 'pt-BR',
+   fallbackLng: 'en',
+   interpolation: { escapeValue: false },
+ });

@@ -146,6 +146,13 @@
     transition:transform .08s,box-shadow .15s,border-color .15s}
   .steam-btn:hover{transform:translateY(-1px);border-color:#8ed3ff;box-shadow:inset 0 2px 0 rgba(255,255,255,.16),0 5px 0 rgba(0,0,0,.4),0 0 18px rgba(102,192,244,.35)}
   .steam-btn:active{transform:translateY(2px);box-shadow:inset 0 2px 0 rgba(255,255,255,.1),0 1px 0 rgba(0,0,0,.4)}
+  .map-btn{display:flex;justify-content:center;margin-top:14px;text-decoration:none;
+    font-weight:800;font-size:.95rem;color:#f2ffe9;text-shadow:var(--shadow);
+    background:linear-gradient(180deg,#3f7a3a,#2a5228);border:2px solid #8fd97f;border-radius:9px;
+    padding:11px 22px;box-shadow:inset 0 2px 0 rgba(255,255,255,.12),0 4px 0 rgba(0,0,0,.4);
+    transition:transform .08s,box-shadow .15s,border-color .15s}
+  .map-btn:hover{transform:translateY(-1px);border-color:#b6efa8}
+  .map-btn:active{transform:translateY(2px);box-shadow:inset 0 2px 0 rgba(255,255,255,.1),0 1px 0 rgba(0,0,0,.4)}
   .launch-note{font-size:.72rem;color:var(--gray);text-shadow:var(--shadow)}
   .pill-row{display:flex;gap:9px;justify-content:center;flex-wrap:wrap;margin-top:14px}
   .pill{font-size:.76rem;font-weight:700;padding:5px 11px;border-radius:999px;border:1.5px solid;
@@ -455,6 +462,7 @@
           <li><span class="fk">tModLoader</span><span class="fv" style="font-size:.8rem"><span id="ver">-</span> <span id="verBadge" class="vbadge" hidden></span></span></li>
         </ul>
         <div class="wlive" id="wlive" hidden></div>
+        <a class="map-btn" href="/mapa/">🗺 Ver mapa do mundo</a>
         <div class="stale-warn" id="staleWarn" hidden>
           <span class="ic">⚠</span>
           <span><b>Servidor desatualizado.</b> A versão <span id="latestVer" style="font-family:ui-monospace,Consolas,monospace"></span> do tModLoader já saiu; enquanto o servidor não atualiza, quem estiver na versão nova da Steam não consegue entrar. Ele se atualiza sozinho no próximo ciclo (diário).</span>

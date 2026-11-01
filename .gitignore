@@ -9,3 +9,6 @@ character-stats-mod/obj/
 
 # Decoded item/buff pixel sprites — optional local drop-in (Re-Logic assets, never commit)
 public/sprites/
+
+# TerraMap Web build (tools/terramap/build.sh)
+public/mapa/

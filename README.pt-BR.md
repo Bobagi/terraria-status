@@ -108,6 +108,19 @@ Pontos-chave (detalhes no README do mod):
 Até o mod ser ativado, o modal mostra uma nota explicando isso — o site funciona
 totalmente sem ele.
 
+## Mapa do mundo (`/mapa/`)
+
+`/mapa/` é um build próprio do [TerraMap Web](https://github.com/TerraMap/terramap.github.io) (MIT) que abre o mundo do servidor sozinho: pan, zoom, busca de minérios e baús, NPCs. Quem lê o mundo é o navegador; o `server.js` só entrega o último save completo em `/mapa/mundo.wld`, conferido a cada minuto (o `world-snapshot.js` recusa arquivo pela metade).
+
+O build fica fora do git. Depois de um clone novo, ou para atualizar o TerraMap (troque `TERRAMAP_COMMIT`):
+
+```bash
+bash tools/terramap/build.sh   # precisa de git e Node >= 20
+npm test                       # testes do arquivo de mundo
+```
+
+As nossas mudanças estão em `tools/terramap/serve-our-world.patch`: carrega o mundo do servidor, pt-BR e tema escuro por padrão, link de volta para o status, sem anúncio nem analytics do projeto original. O TerraMap lê só o `.wld`, então blocos de mods (guardados no `.twld`) não aparecem.
+
 ## Notas de segurança
 
 - O log do console do tModLoader **contém a senha do servidor** (a imagem imprime a config

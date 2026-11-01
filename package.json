@@ -4,7 +4,8 @@
   "description": "Zero-dependency live status page for a tModLoader (Terraria) dedicated server running in Docker — players online, CPU/RAM, mods, world info.",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test"
   },
   "engines": {
     "node": ">=18"

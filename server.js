@@ -14,7 +14,9 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { execFile } = require('child_process');
+const { isCompleteWorld } = require('./world-snapshot');
 
 // ---- deploy config (override via environment; defaults match bobagi.space) --
 const PORT = parseInt(process.env.STATUS_PORT || '3063', 10);
@@ -92,6 +94,9 @@ let snapshot = {
   server: SERVER,
   mods: MODS,
 };
+
+// Last complete copy of the world, for the /mapa/ viewer (the browser parses it).
+let worldSnapshot = null; // { buf, etag, mtime }
 
 // name -> firstSeen epoch ms, so we can show "online for ~X" without a mod.
 const sessions = Object.create(null);
@@ -280,6 +285,15 @@ async function collectDisk() {
   fs.stat(WORLD_FILE, (e, st) => { if (!e) snapshot.world.lastSaveAt = st.mtime.toISOString(); });
 }
 
+async function collectWorldSnapshot() {
+  const st = await fs.promises.stat(WORLD_FILE);
+  if (worldSnapshot && worldSnapshot.mtime.getTime() === st.mtime.getTime()) return;
+  const buf = await fs.promises.readFile(WORLD_FILE);
+  if (!isCompleteWorld(buf, WORLD_NAME)) return;   // mid-save: keep the last good copy
+  const etag = '"' + crypto.createHash('sha1').update(buf).digest('hex') + '"';
+  worldSnapshot = { buf, etag, mtime: st.mtime };
+}
+
 // ---- poll loops ------------------------------------------------------------
 async function fastLoop() {
   try { await collectInspect(); await collectStats(); snapshot.updatedAt = new Date().toISOString(); }
@@ -294,15 +308,34 @@ async function diskLoop() {
   try { await collectDisk(); await collectVersion(); await collectLatestVersion(); } catch (_) {}
   finally { setTimeout(diskLoop, 5 * 60 * 1000); }
 }
+async function worldLoop() {
+  try { await collectWorldSnapshot(); } catch (_) {}
+  finally { setTimeout(worldLoop, worldSnapshot ? 60 * 1000 : 5000); }
+}
 
 // ---- http ------------------------------------------------------------------
-const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.png': 'image/png', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.woff2': 'font/woff2', '.woff': 'font/woff', '.txt': 'text/plain; charset=utf-8' };
+const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.png': 'image/png', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.woff2': 'font/woff2', '.woff': 'font/woff', '.txt': 'text/plain; charset=utf-8', '.json': 'application/json; charset=utf-8' };
+
+function serveWorld(req, res) {
+  if (!worldSnapshot) { res.writeHead(503, { 'retry-after': '10' }); return res.end('world not ready'); }
+  const { buf, etag, mtime } = worldSnapshot;
+  const headers = {
+    etag,
+    'last-modified': mtime.toUTCString(),
+    'cache-control': 'no-cache',
+    'x-world-name': WORLD_NAME,
+    'x-content-type-options': 'nosniff',
+  };
+  if (req.headers['if-none-match'] === etag) { res.writeHead(304, headers); return res.end(); }
+  res.writeHead(200, { ...headers, 'content-type': 'application/octet-stream', 'content-length': buf.length });
+  res.end(buf);
+}
 
 function serveStatic(req, res) {
   let rel;
   try { rel = decodeURIComponent(req.url.split('?')[0]); }
   catch (_) { res.writeHead(400); return res.end('bad request'); } // malformed %-escape must not crash the process
-  if (rel === '/') rel = '/index.html';
+  if (rel.endsWith('/')) rel += 'index.html';
   const file = path.normalize(path.join(PUBLIC_DIR, rel));
   // Prefix check WITH the separator, bare startsWith(PUBLIC_DIR) would also
   // match a sibling like public-evil/.
@@ -324,6 +357,8 @@ http.createServer((req, res) => {
     return res.end(JSON.stringify(snapshot));
   }
   if (req.url === '/healthz') { res.writeHead(200); return res.end('ok'); }
+  if (req.url.split('?')[0] === '/mapa/mundo.wld') return serveWorld(req, res);
+  if (req.url === '/mapa') { res.writeHead(301, { location: '/mapa/' }); return res.end(); }
   // SEO: página única, então sitemap e robots são estáticos e curtos.
   // /api/ fora do índice (JSON, muda a cada poll, não é conteúdo de busca).
   if (req.url === '/robots.txt') {
@@ -335,6 +370,7 @@ http.createServer((req, res) => {
     return res.end(
       '<?xml version="1.0" encoding="UTF-8"?>\n'
       + '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+      + `  <url>\n    <loc>${SITE_ORIGIN}/mapa/</loc>\n    <changefreq>daily</changefreq>\n  </url>\n`
       + `  <url>\n    <loc>${SITE_ORIGIN}/</loc>\n`
       + `    <lastmod>${new Date().toISOString().slice(0, 10)}</lastmod>\n`
       + '    <changefreq>hourly</changefreq>\n    <priority>1.0</priority>\n  </url>\n'
@@ -345,7 +381,7 @@ http.createServer((req, res) => {
 }).listen(PORT, HOST, () => {
   console.log(`terraria-status listening on http://${HOST}:${PORT}`);
   SERVER.sprites = { item: hasSprites('item'), buff: hasSprites('buff'), npc: hasSprites('npc') };
-  fastLoop(); diskLoop();
+  fastLoop(); diskLoop(); worldLoop();
   setTimeout(playerLoop, 3000); // let the first inspect land so `online` is known
 
 });
