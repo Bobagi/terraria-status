@@ -17,6 +17,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { execFile } = require('child_process');
 const { isCompleteWorld } = require('./world-snapshot');
+const { parsePlaying, NAME_MAX } = require('./console-players');
 
 // ---- deploy config (override via environment; defaults match bobagi.space) --
 const PORT = parseInt(process.env.STATUS_PORT || '3063', 10);
@@ -31,6 +32,9 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 // Optional: written by the companion server-side mod (see optional-serverside-mod/).
 // If present & fresh, per-player character stats appear in the site's player modal.
 const STATS_FILE = process.env.TMOD_STATS_FILE || path.join(DATA_DIR, 'playerstats.json');
+// The mod rewrites the file every ~3 s while anyone is online. Newer than this, it
+// is the live truth about who is connected.
+const STATS_FRESH_MS = 15000;
 
 // ---- static, subject-known metadata --------------------------------------
 const MODS = [
@@ -90,7 +94,7 @@ let snapshot = {
   // list: [{ name, onlineForSec, stats|null }]. statsSource=true when the optional
   // companion mod is feeding playerstats.json (life/gear/inventory); false → names only.
   players: { count: 0, max: WORLD.maxPlayers, list: [], statsSource: false, sampledAt: null },
-  world: Object.assign({ lastSaveAt: null, live: null }, WORLD),
+  world: Object.assign({ lastSaveAt: null, live: null, progress: null }, WORLD),
   server: SERVER,
   mods: MODS,
 };
@@ -168,7 +172,8 @@ async function collectStats() {
 function readModStats() {
   try {
     const st = fs.statSync(STATS_FILE);
-    if (Date.now() - st.mtimeMs > 60000) return null;   // stale mod output
+    const ageMs = Date.now() - st.mtimeMs;
+    if (ageMs > 60000) return null;                     // stale mod output
     if (st.size > 2 * 1024 * 1024) return null;         // bound parse cost (full inventories × 8 players)
     const data = JSON.parse(fs.readFileSync(STATS_FILE, 'utf8'));
     const byName = Object.create(null);
@@ -177,11 +182,30 @@ function readModStats() {
     // Newer mod builds also emit a live world summary (day/night, progression,
     // downed bosses); older ones don't, tolerate both.
     const world = (data && typeof data.world === 'object') ? data.world : null;
-    return { byName, world };
+    return { byName, world, fresh: ageMs <= STATS_FRESH_MS };
   } catch (_) { return null; }
 }
 
+// The world's progress outlives the player stats: with nobody online the mod stops
+// writing, but its last export is still true until someone plays again. So this one
+// ignores the file's age. Only booleans leave here, whatever the file holds.
+function readWorldProgress() {
+  try {
+    const st = fs.statSync(STATS_FILE);
+    if (st.size > 2 * 1024 * 1024) return;
+    const world = JSON.parse(fs.readFileSync(STATS_FILE, 'utf8')).world;
+    if (!world || typeof world.downed !== 'object' || !world.downed) return;
+    const downed = {};
+    for (const [key, value] of Object.entries(world.downed)) downed[key] = value === true;
+    snapshot.world.progress = {
+      crimson: world.crimson === true,
+      downed,
+    };
+  } catch (_) { /* keep last */ }
+}
+
 async function collectPlayers() {
+  readWorldProgress();
   // Only meaningful while the container is up.
   if (!snapshot.online) {
     snapshot.players.count = 0; snapshot.players.list = []; snapshot.players.statsSource = false;
@@ -195,33 +219,20 @@ async function collectPlayers() {
   // `docker logs --tail` which gets slow once the json log grows large.
   const { err, out } = await run('docker', ['exec', CONTAINER, 'tmux', 'capture-pane', '-p', '-S', '-60']);
   if (err) return;
-  const lines = out.split('\n').map((l) => l.replace(/\r$/, ''));
-  // Find the LAST echoed `playing` command, then read the server reply lines.
-  let idx = -1;
-  for (let i = lines.length - 1; i >= 0; i--) {
-    if (lines[i].trim() === 'playing') { idx = i; break; }
-  }
-  if (idx === -1) return;
-  const names = [];
-  for (let i = idx + 1; i < lines.length; i++) {
-    const raw = lines[i];
-    if (!raw.startsWith(': ')) break;          // reply lines are prefixed with ": "
-    const body = raw.slice(2).trim();
-    if (!body) continue;
-    // "No players connected." ends the block; a "N players connected:" header is skipped.
-    if (/connected/i.test(body)) { if (/^no players/i.test(body)) break; else continue; }
-    // A player entry may look like "Name" or "Name (1.2.3.4:port)". Keep the name,
-    // strip any parenthetical / IP so we never publish a player's address.
-    let name = body.replace(/\s*\(.*$/, '').replace(/\s*\d{1,3}(\.\d{1,3}){3}.*$/, '').trim();
-    if (name && !/^<server>/i.test(name)) names.push(name.slice(0, 24));
-    if (names.length >= WORLD.maxPlayers) break;
-  }
+  // Player chat reaches this console and can hold line breaks, so a connected player
+  // can print a fake `playing` reply. The mod reads Main.player directly: trust it
+  // while it is live. The console only speaks for an empty server (the mod is idle
+  // then, and a forgery needs a connected player) or a missing mod.
+  const mod = readModStats();
+  const names = mod && mod.fresh
+    ? Object.keys(mod.byName).map((n) => n.slice(0, NAME_MAX)).slice(0, WORLD.maxPlayers)
+    : parsePlaying(out);
+  if (!names) return;                            // no complete reply on screen: keep the last list
   // Track session start (approx: first poll that sees the name) and drop leavers.
   const now = Date.now();
   for (const n of names) if (!sessions[n]) sessions[n] = now;
   for (const n of Object.keys(sessions)) if (!names.includes(n)) delete sessions[n];
 
-  const mod = readModStats();
   snapshot.players.statsSource = !!mod;
   snapshot.world.live = mod ? mod.world : null;   // live day/night, progression, downed bosses (or null)
   snapshot.players.list = names.map((n) => ({

@@ -207,6 +207,23 @@
   .fill.cpu.hot{--c1:#ff7a4d;--c2:#ff3b57}
   .fill.ram{--c1:#5aa9ff;--c2:#c58bff}
 
+  /* ---- boss checklist ---- */
+  .boss-head{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+  .boss-head .bar{flex:1;min-width:0}
+  .boss-count{font-family:ui-monospace,Consolas,monospace;font-weight:700;font-size:1.05rem;text-shadow:var(--shadow);flex:none}
+  .fill.boss{--c1:#ffb648;--c2:#ffd21a}
+  .boss-sub{margin:18px 0 10px;font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;color:var(--gray);text-shadow:var(--shadow)}
+  .bosses{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:10px}
+  .boss{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 6px 9px;
+    background:rgba(255,255,255,.03);border:1px solid #3a3560;border-radius:8px;text-align:center}
+  .boss img{width:48px;height:48px;object-fit:contain;image-rendering:pixelated;filter:grayscale(1) brightness(.5)}
+  .boss .bn{font-size:.72rem;font-weight:600;line-height:1.2;color:var(--gray);text-shadow:var(--shadow)}
+  .boss.done{background:rgba(255,210,26,.09);border-color:rgba(255,210,26,.5)}
+  .boss.done img{filter:none}
+  .boss.done .bn{color:#fff}
+  .boss .bs{position:absolute;top:5px;right:6px;font-size:.8rem;font-weight:700;color:var(--green);text-shadow:var(--shadow)}
+  .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+
   /* ---- stat chips ---- */
   .chips{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:2px}
   .chip{background:rgba(255,255,255,.035);border:1px solid #3a3560;border-radius:8px;padding:11px 12px}
@@ -502,6 +519,20 @@
           <div class="chip"><div class="k">Rede ↓ / ↑</div><div class="v" id="net" style="font-size:.9rem">-</div></div>
           <div class="chip"><div class="k">Mundo em disco</div><div class="v" id="disk">-</div></div>
         </div>
+      </section>
+    </div>
+
+    <!-- boss checklist -->
+    <div class="col-12" id="bossPanel" hidden>
+      <section class="panel">
+        <h2 class="panel-title hud"><span class="sec-ic" style="color:var(--red)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c5 0 8 3.4 8 8 0 3-1.5 5-3 6.2V20a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-3.8C5.5 15 4 13 4 10c0-4.6 3-8 8-8zM9 9a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg></span>Bosses derrotados</h2>
+        <div class="boss-head">
+          <div class="bar" role="img" id="bossBar"><div class="fill boss" id="bossFill"></div></div>
+          <span class="boss-count" id="bossCount">-</span>
+        </div>
+        <ul class="bosses" id="bossList"></ul>
+        <h3 class="boss-sub">Eventos e minibosses</h3>
+        <ul class="bosses" id="eventList"></ul>
       </section>
     </div>
 
@@ -943,6 +974,7 @@
       if(lw.pumpkinMoon)wl.appendChild(wpill('warn','🎃 Lua Abóbora'));
       if(lw.snowMoon)wl.appendChild(wpill('warn','❄ Lua Gelada'));
     }else{wl.hidden=true;}
+    renderBosses(d.world&&d.world.progress);
 
     // mods (once)
     var mbox=$('mods');
@@ -967,6 +999,55 @@
       if(s.steamAppId)$('steamBtn').href='steam://run/'+s.steamAppId;
     }
     if(d.mods)$('modCount').textContent=d.mods.length;
+  }
+
+  // Progression order, names as the game shows them in pt-BR. Numbers are boss head
+  // sprites (NPCID.Sets.BossHeadTextures); 'item:' uses an item sprite instead.
+  var BOSSES=[
+    ['kingSlime','Geleia Rei',7],['eyeOfCthulhu','Olho de Cthulhu',0],['evilBoss',null,null],
+    ['queenBee','Abelha Rainha',14],['skeletron','Esqueletron',19],['deerclops','Cervoclope',39],
+    ['wallOfFlesh','Parede de Carne',22],['queenSlime','Geleia Rainha',38],['theTwins','Os Gêmeos',20],
+    ['destroyer','O Destruidor',25],['skeletronPrime','Esqueletron Alfa',18],['plantera','Plantera',11],
+    ['golem','Golem',5],['duke','Duque Peixe-dragão',4],['empress','Imperatriz da Luz',37],
+    ['cultist','Cultista Lunático',24],['moonLord','Senhor da Lua',8]
+  ];
+  var EVENTS=[
+    ['goblins','Invasão dos Goblins','item:361'],['frostLegion','Legião Congelada','item:602'],
+    ['pirates','Invasão Pirata',26],['martians','Invasão Marciana',9],
+    ['darkMage','Mago Sombrio',32],['ogre','Ogro',33],['betsy','Betsy',34],
+    ['mourningWood','Árvore da Morte',10],['pumpking','Reibóbora',13],
+    ['everscream','Everscream',3],['santaNK1','Papai-Noel-NK1',17],['iceQueen','Rainha do Gelo',6]
+  ];
+  function bossTile(b,done){
+    var li=el('li','boss'+(done?' done':''));
+    if(spritesOn.npc){
+      var img=document.createElement('img');img.alt='';img.width=48;img.height=48;
+      img.src=typeof b[2]==='number'?'/sprites/npc/boss_'+b[2]+'.png':'/sprites/item/'+String(b[2]).slice(5)+'.png';
+      img.onerror=function(){img.remove();};
+      li.appendChild(img);
+    }
+    li.appendChild(el('span','bn',b[1]));
+    if(done){var mark=el('span','bs','✓');mark.setAttribute('aria-hidden','true');li.appendChild(mark);}
+    li.appendChild(el('span','sr-only',done?' (derrotado)':' (ainda não derrotado)'));
+    return li;
+  }
+  var bossKey='';
+  function renderBosses(p){
+    if(!p||!p.downed)return;
+    var key=JSON.stringify(p)+spritesOn.npc;
+    if(key===bossKey)return;
+    bossKey=key;
+    var list=BOSSES.map(function(b){
+      return b[0]==='evilBoss'?[b[0],p.crimson?'Cérebro de Cthulhu':'Devorador de Mundos',p.crimson?23:2]:b;
+    });
+    var done=list.filter(function(b){return p.downed[b[0]];}).length;
+    var bl=$('bossList'),ev=$('eventList');bl.textContent='';ev.textContent='';
+    list.forEach(function(b){bl.appendChild(bossTile(b,!!p.downed[b[0]]));});
+    EVENTS.forEach(function(b){ev.appendChild(bossTile(b,!!p.downed[b[0]]));});
+    $('bossCount').textContent=done+'/'+list.length;
+    $('bossFill').style.width=(done/list.length*100)+'%';
+    $('bossBar').setAttribute('aria-label',done+' de '+list.length+' bosses derrotados');
+    $('bossPanel').hidden=false;
   }
 
   function tick(){

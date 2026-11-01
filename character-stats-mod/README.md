@@ -1,7 +1,7 @@
-# Status Export — server-side character-stats mod
+# Status Export - server-side character-stats mod
 
 > 🟢 **This mod is LIVE on the demo server** ([terraria.bobagi.space](https://terraria.bobagi.space)).
-> A prebuilt `.tmod` is included in [`prebuilt/`](prebuilt/) — you can deploy it without
+> A prebuilt `.tmod` is included in [`prebuilt/`](prebuilt/) - you can deploy it without
 > building anything.
 
 This small **tModLoader mod feeds the character-stats modal** on the status page:
@@ -11,7 +11,7 @@ utility slots, ammo, and active buffs. It also emits a small **world summary**
 (day/night + in-game clock, progression stage, blood-moon / eclipse flags, downed
 bosses) that powers the site's world panel.
 
-Without it, the site still shows **who** is online and for how long — it just
+Without it, the site still shows **who** is online and for how long - it just
 can't show their character details, because a vanilla tModLoader dedicated server
 exposes only player *names* over its console (`playing`). There is no built-in
 API/console command for character data, and **tShock's REST API does not work
@@ -32,7 +32,7 @@ It uses `PostUpdateEverything()` (the reliable per-tick hook on a dedicated
 server) and is defensive: the whole export is wrapped in try/catch and logs once
 on success/failure, so a bad read can never destabilize the server. When the
 server is empty it idles (the file simply stops updating and the site shows no
-stats — there's nobody to show); when players are online it refreshes every ~3 s.
+stats - there's nobody to show); when players are online it refreshes every ~3 s.
 
 > ℹ️ **"Level" is intentionally absent:** Terraria has no character levels unless
 > you also run an RPG/leveling mod. Instead the mod emits a **world progression stage**
@@ -44,7 +44,7 @@ stats — there's nobody to show); when players are online it refreshes every ~3
 >
 > ⚠️ **Rebuild after a major tModLoader update.** A `.tmod` is tied to the tML
 > version it was built against. After a big version bump, rebuild (below) if the
-> server log shows the mod being skipped — the server still boots fine either way.
+> server log shows the mod being skipped - the server still boots fine either way.
 
 ## How it works
 
@@ -76,6 +76,26 @@ sprite when `public/sprites/item/<id>.png` is present.
                       "rarity": 1, "stack": 20 }] } ] }
 ```
 
+## Console admin commands
+
+`AdminCommands.cs` adds commands that only exist on the **server console** (`CommandType.Console`),
+never in the in-game chat. Run them from the host with `tools/tmod-admin.sh "<command>"`, which
+injects the command and prints the reply. Players still need nothing: items, NPCs and events are
+created by the server and synced with vanilla packets.
+
+| Command | What it does |
+| --- | --- |
+| `who` | Online players: life, mana, position |
+| `find <item\|npc\|buff> <text>` | Looks up ids by name |
+| `give <player> <item> [amount] [prefix]` | Item by id or name (`Terra_Blade`), any amount up to 50 piles |
+| `coins <player> <platinum> [gold] [silver] [copper]` | Coins |
+| `heal <player\|all>` | Fills life and mana (drops hearts and stars, the client owns these values) |
+| `buff <player> <buff> [seconds]` | Applies a buff |
+| `tp <player> <player\|spawn\|dungeon\|x y>` | Teleports, `x y` in tiles |
+| `spawn <npc\|boss> <player> [amount]` | Spawns near the player, up to 20 |
+| `clearhostile` | Removes enemies and bosses without drops, keeps critters and target dummies |
+| `event <bloodmoon\|eclipse\|goblins\|frost\|pirates\|martians\|pumpkinmoon\|frostmoon\|rain\|stop>` | World events, `stop` ends them all |
+
 ## Build
 
 **Easiest:** just use the prebuilt [`prebuilt/StatusExport.tmod`](prebuilt/) and skip to Deploy.
@@ -83,7 +103,7 @@ sprite when `public/sprites/item/<id>.png` is present.
 **In-game:** install tModLoader, copy this folder to your `ModSources/StatusExport/`,
 then **Workshop → Develop Mods → Build**.
 
-**Headless** (how this repo's copy was built — no game GUI, works on a server):
+**Headless** (how this repo's copy was built - no game GUI, works on a server):
 
 ```bash
 # in a container/host that has tModLoader's files (tModLoader.dll + tMLMod.targets):
@@ -98,8 +118,8 @@ PATH=/tmp/sdk:$PATH HOME=/tmp dotnet build -c Release
 
 The [`jacobsmile/tmodloader1.4`](https://github.com/JACOBSMILE/tmodloader1.4) image
 rebuilds `enabled.json` from `TMOD_ENABLEDMODS` (Steam Workshop IDs) on every boot,
-which would wipe a plain local mod. The clean, **persistent** trick — and exactly how
-it's deployed on the live server — is to give the local `.tmod` its own "workshop"
+which would wipe a plain local mod. The clean, **persistent** trick - and exactly how
+it's deployed on the live server - is to give the local `.tmod` its own "workshop"
 folder so the existing machinery enables it:
 
 1. Drop the `.tmod` into a self-assigned Workshop-id folder **in the data volume**
@@ -109,7 +129,7 @@ folder so the existing machinery enables it:
    data/steamMods/steamapps/workshop/content/1281930/9000000001/workshop.json
    ```
    (`workshop.json`: `{"ContentType":"Mod","SteamEntryId":9000000001,"Publicity":0}`)
-2. Add that id to **`TMOD_ENABLEDMODS`** in `docker-compose.yml` — but **NOT** to
+2. Add that id to **`TMOD_ENABLEDMODS`** in `docker-compose.yml` - but **NOT** to
    `TMOD_AUTODOWNLOAD` (steamcmd must never try to fetch a non-Workshop id).
 3. `docker compose up -d`. The entrypoint resolves the id → `StatusExport` → enables
    it; tModLoader loads it. Within a few seconds `playerstats.json` appears next to

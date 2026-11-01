@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using Newtonsoft.Json;              // ships with tModLoader
 using Terraria;
+using Terraria.GameContent.Events;
 using Terraria.ID;
 using Terraria.ModLoader;
 
@@ -13,13 +14,14 @@ namespace StatusExport
 	// to the save directory, so the terraria-status web page can show them in its
 	// player modal and world panel.
 	//
-	// Because it is side = Server, PLAYERS DO NOT NEED THIS MOD — it does not
+	// Because it is side = Server, PLAYERS DO NOT NEED THIS MOD: it does not
 	// change the required modlist and nobody gets kicked for not having it.
 	//
 	// It reads only data the server already receives for multiplayer sync
 	// (life/mana/defense, equipped items, inventory, buffs) plus world flags the
-	// server owns (day/night, hardmode, downed bosses). It writes nothing to
-	// gameplay and adds no content.
+	// server owns (day/night, hardmode, downed bosses). The export itself writes
+	// nothing to gameplay and the mod adds no content; AdminCommands.cs adds the
+	// console-only admin commands.
 	public class StatusExport : Mod { }
 
 	// ---- persistent per-player death counter -------------------------------
@@ -86,10 +88,25 @@ namespace StatusExport
 	public class StatsExporterSystem : ModSystem
 	{
 		private const int IntervalTicks = 180; // ~3 s at 60 fps
+		private const int BootExportDelayMs = 15000;
+		private static readonly object WriteGate = new object();
 		private int _tick;
 		private bool _loggedOk, _loggedErr;
 
 		public override void OnModLoad() { DeathTracker.Load(); }
+
+		// With nobody online the update loop is idle, so PostUpdateEverything never
+		// runs. Export once after boot, otherwise the site would miss the world's
+		// progress until the first player joins.
+		public override void OnWorldLoad()
+		{
+			if (!Main.dedServ) return;
+			System.Threading.Tasks.Task.Delay(BootExportDelayMs).ContinueWith(_ =>
+			{
+				try { Export(); }
+				catch (System.Exception e) { Mod.Logger.Warn("StatusExport boot export failed: " + e); }
+			});
+		}
 
 		// PostUpdateEverything fires every tick on a dedicated server (unlike some
 		// player/world hooks that can be skipped headless).
@@ -101,22 +118,37 @@ namespace StatusExport
 			_tick = 0;
 
 			// The whole body is guarded: a mod must never destabilize the server,
-			// and this one only produces a side file — if anything throws, log it
+			// and this one only produces a side file, if anything throws, log it
 			// once and skip rather than spamming the tick loop.
 			try
 			{
-				var players = Main.player
-					.Where(p => p != null && p.active)
-					.Select(BuildPlayer)
-					.ToList();
+				int count = Export();
+				if (!_loggedOk) { Mod.Logger.Info($"StatusExport: writing {count} player(s) to {Main.SavePath}"); _loggedOk = true; }
+			}
+			catch (System.Exception e)
+			{
+				// Log once so a real problem is diagnosable, but never destabilize the server.
+				if (!_loggedErr) { Mod.Logger.Warn("StatusExport export failed: " + e); _loggedErr = true; }
+			}
+		}
 
-				var payload = new
-				{
-					updatedAt = System.DateTime.UtcNow.ToString("o"),
-					world = BuildWorld(),
-					players
-				};
+		// Returns how many players were written.
+		private static int Export()
+		{
+			var players = Main.player
+				.Where(p => p != null && p.active)
+				.Select(BuildPlayer)
+				.ToList();
 
+			var payload = new
+			{
+				updatedAt = System.DateTime.UtcNow.ToString("o"),
+				world = BuildWorld(),
+				players
+			};
+
+			lock (WriteGate)
+			{
 				// Main.SavePath is the tModLoader save dir (e.g. /data/tModLoader in
 				// the Docker image), which is exactly where the site reads from.
 				string tmp = Path.Combine(Main.SavePath, "playerstats.json.tmp");
@@ -124,14 +156,9 @@ namespace StatusExport
 				File.WriteAllText(tmp, JsonConvert.SerializeObject(payload));
 				File.Copy(tmp, dst, true);   // near-atomic replace so the reader never sees a half file
 				File.Delete(tmp);
-				DeathTracker.Save();
-				if (!_loggedOk) { Mod.Logger.Info($"StatusExport: writing {players.Count} player(s) to {dst}"); _loggedOk = true; }
 			}
-			catch (System.Exception e)
-			{
-				// Log once so a real problem is diagnosable, but never destabilize the server.
-				if (!_loggedErr) { Mod.Logger.Warn("StatusExport export failed: " + e); _loggedErr = true; }
-			}
+			DeathTracker.Save();
+			return players.Count;
 		}
 
 		// ---- world summary ----------------------------------------------------
@@ -146,6 +173,7 @@ namespace StatusExport
 
 			var downed = new Dictionary<string, bool>
 			{
+				["kingSlime"]      = NPC.downedSlimeKing,
 				["eyeOfCthulhu"]   = NPC.downedBoss1,
 				["evilBoss"]       = NPC.downedBoss2,   // Eater of Worlds / Brain of Cthulhu
 				["skeletron"]      = NPC.downedBoss3,
@@ -162,6 +190,18 @@ namespace StatusExport
 				["duke"]           = NPC.downedFishron,
 				["cultist"]        = NPC.downedAncientCultist,
 				["moonLord"]       = NPC.downedMoonlord,
+				["goblins"]        = NPC.downedGoblins,
+				["frostLegion"]    = NPC.downedFrost,
+				["pirates"]        = NPC.downedPirates,
+				["martians"]       = NPC.downedMartians,
+				["mourningWood"]   = NPC.downedHalloweenTree,
+				["pumpking"]       = NPC.downedHalloweenKing,
+				["everscream"]     = NPC.downedChristmasTree,
+				["santaNK1"]       = NPC.downedChristmasSantank,
+				["iceQueen"]       = NPC.downedChristmasIceQueen,
+				["darkMage"]       = DD2Event.DownedInvasionT1,
+				["ogre"]           = DD2Event.DownedInvasionT2,
+				["betsy"]          = DD2Event.DownedInvasionT3,
 			};
 
 			// Coarse progression stage for the "level" proxy.
@@ -187,6 +227,7 @@ namespace StatusExport
 				pumpkinMoon = Main.pumpkinMoon,
 				snowMoon = Main.snowMoon,
 				progression = stage,
+				crimson = WorldGen.crimson,
 				downed
 			};
 		}
@@ -275,7 +316,7 @@ namespace StatusExport
 				lifeMax = p.statLifeMax2,
 				mana = p.statMana,
 				manaMax = p.statManaMax2,
-				// statDefense is a DefenseStat struct since tML 1.4.4 — coerce to the
+				// statDefense is a DefenseStat struct since tML 1.4.4: coerce to the
 				// effective int via its implicit conversion (serializing it raw dumps
 				// {Positive,Negative,AdditiveBonus,FinalMultiplier} instead of a number).
 				defense = (int)p.statDefense,

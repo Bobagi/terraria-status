@@ -1,4 +1,4 @@
-# terraria-status — página de status ao vivo pra servidor tModLoader
+# terraria-status - página de status ao vivo pra servidor tModLoader
 
 [English](README.md) · **Português**
 
@@ -6,10 +6,11 @@ Uma **página de status em Node.js sem dependências** pra servidor dedicado de 
 modado (**tModLoader**) rodando em Docker. Mostra, ao vivo e atualizando sozinha:
 
 - 🟢 Servidor **online/offline**, uptime, reinícios
-- 👥 **Jogadores online** (nomes, sem IPs) e vagas livres — **clique num nome pra abrir o modal do personagem** (veja abaixo)
+- 👥 **Jogadores online** (nomes, sem IPs) e vagas livres - **clique num nome pra abrir o modal do personagem** (veja abaixo)
 - 📊 **CPU / RAM** do container do servidor, tráfego de rede, tamanho do mundo em disco
 - 🗺️ Info do mundo (nome, tamanho, dificuldade, último save) e a **versão do tModLoader rodando**
 - 🔺 **Aviso de desatualizado**: compara a versão rodando com a última stable no GitHub e sinaliza explicitamente quando o servidor está atrás
+- 🏆 **Checklist de bosses** vinda do mod do servidor, visível mesmo com o servidor vazio
 - 🧩 A **lista de mods** do servidor com links pra Steam Workshop
 - 🎮 Botão **"Abrir tModLoader"** (`steam://run/1281930`) e endereço copiável
 
@@ -33,7 +34,7 @@ jogadores ──HTTPS──▶ nginx ──▶ Node (127.0.0.1:3063) ──docke
   JSON em cache; o navegador consulta `GET /api/status` a cada 5 s.
 - Os jogadores online vêm do console do servidor: `docker exec <container> inject "playing"`
   e a resposta é lida com `tmux capture-pane` (a imagem JACOBSMILE roda o console num tmux).
-  **Não** use `docker logs --tail` — fica lento conforme o log cresce.
+  **Não** use `docker logs --tail` - fica lento conforme o log cresce.
 - Roda **no host, não em container**, de propósito: precisa do CLI `docker`, e montar o
   `docker.sock` num container exposto à internet seria um risco bem maior.
 
@@ -72,7 +73,7 @@ server {
 | Variável         | Padrão                                  | O que é                              |
 |------------------|-----------------------------------------|--------------------------------------|
 | `STATUS_PORT`    | `3063`                                  | Porta HTTP (mantenha atrás do nginx) |
-| `STATUS_BIND`    | `127.0.0.1`                             | Bind — **mantenha localhost**        |
+| `STATUS_BIND`    | `127.0.0.1`                             | Bind - **mantenha localhost**        |
 | `TMOD_CONTAINER` | `tmodloader`                            | Nome do container do servidor        |
 | `TMOD_DATA_DIR`  | `/opt/terraria-tmodloader/data/tModLoader` | Volume de dados do servidor       |
 | `TMOD_WORLD`     | `Bobagi`                                | Nome do mundo (arquivo `.wld`)       |
@@ -83,7 +84,7 @@ server {
 | `SERVER_IP`      | `46.202.144.75`                         | Endereço alternativo exibido         |
 | `SERVER_PORT`    | `7777`                                  | Porta do jogo                        |
 
-A **lista de mods** exibida é o array `MODS` no topo do `server.js` — edite pra bater com
+A **lista de mods** exibida é o array `MODS` no topo do `server.js` - edite pra bater com
 o `TMOD_ENABLEDMODS` do seu servidor (nome, ID da Workshop, descrição de uma linha).
 
 ## Stats de personagem (opcional)
@@ -92,20 +93,20 @@ Clique no nome de um jogador e abre um modal. De cara ele mostra **quem** é e *
 quanto tempo** está online (tirado do console, sem precisar de mod).
 
 Pra mostrar também **vida, mana, defesa, equipamentos, inventário e buffs**, rode o
-mod server-side em [`character-stats-mod/`](character-stats-mod/) — **ele está ativo no
+mod server-side em [`character-stats-mod/`](character-stats-mod/) - **ele está ativo no
 demo ao vivo**, e vem com um `.tmod` pré-buildado + build headless de um comando. Ele
 grava `playerstats.json` na pasta de saves a cada poucos segundos e este app lê o arquivo.
 
 Pontos-chave (detalhes no README do mod):
 
-- É **`side = Server`** — **os jogadores NÃO precisam dele**, não entra na modlist
+- É **`side = Server`** - **os jogadores NÃO precisam dele**, não entra na modlist
   obrigatória, e ninguém é kickado por não ter.
 - Um servidor tModLoader puro expõe **só os nomes** pelo console; não há API nativa
   pros dados do personagem, e a **REST API do tShock é incompatível com tModLoader**.
   Um mod server-side é o único caminho.
 - **"Level" não existe no Terraria** a não ser que você rode também um mod de RPG/nível.
 
-Até o mod ser ativado, o modal mostra uma nota explicando isso — o site funciona
+Até o mod ser ativado, o modal mostra uma nota explicando isso - o site funciona
 totalmente sem ele.
 
 ## Mapa do mundo (`/mapa/`)
@@ -124,7 +125,7 @@ As nossas mudanças estão em `tools/terramap/serve-our-world.patch`: carrega o 
 ## Notas de segurança
 
 - O log do console do tModLoader **contém a senha do servidor** (a imagem imprime a config
-  no boot). Este app **nunca devolve linha crua de log** — extrai só nomes de jogador e
+  no boot). Este app **nunca devolve linha crua de log** - extrai só nomes de jogador e
   **remove qualquer coisa que pareça IP** antes de publicar.
 - A página nunca mostra a senha (diz "com senha"; o jogador pede pra você).
 - Mantenha o Node em `127.0.0.1` e termine TLS no nginx.
