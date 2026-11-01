@@ -47,6 +47,8 @@ const MODS = [
   { id: '2908170107', name: 'SerousCommonLib',  rarity: 'gray',   desc: 'Biblioteca de suporte: o Magic Storage precisa dela (instala junto).' },
   { id: '3021379176', name: 'Steam Achievement Fix', rarity: 'cyan', desc: 'As conquistas que você desbloqueia aqui contam no seu perfil do Terraria na Steam, automático, o servidor já exige o mod.' },
   { id: '2570931073', name: "Fargo's Mutant Mod", rarity: 'red', desc: 'Construção instantânea (Instabridge, InstaHouse, Instavator) e o NPC Mutant, que vende invocações de bosses.' },
+  { id: '2815540735', name: "Fargo's Souls Mod", rarity: 'purple', desc: 'Encantamentos, Souls e bosses novos. O Eternity Mode é opcional: só liga com o item Mutant\'s Gift.' },
+  { id: '3222493606', name: 'Luminance', rarity: 'gray', desc: 'Biblioteca de suporte: o Fargo\'s Souls precisa dela (instala junto).' },
 ];
 
 const WORLD = {
