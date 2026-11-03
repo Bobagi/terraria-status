@@ -125,18 +125,96 @@ index ea6db3d..df47a7c 100644
                  worldFileInputRef={worldFileInputRef}
                  directoryInputRef={directoryInputRef}
                  checkingNative={checkingNativeAccess}
+diff --git a/src/components/CanvasContainer.tsx b/src/components/CanvasContainer.tsx
+index 9d32731..9d7fe52 100644
+--- a/src/components/CanvasContainer.tsx
++++ b/src/components/CanvasContainer.tsx
+@@ -134,6 +134,17 @@ export const CanvasContainer = forwardRef<CanvasContainerHandle, CanvasContainer
+       }
+     }, []);
+ 
++    // terraria.bobagi.space: a very wide world fitted to the width is a thin strip; center it
++    // vertically instead of leaving it glued to the top over an empty screen.
++    const centerShortMap = useCallback(() => {
++      requestAnimationFrame(() => {
++        const wrapper = wrapperRef.current;
++        if (!wrapper) return;
++        const { width, height } = getLayoutSize();
++        if (height > 0 && height < wrapper.getBoundingClientRect().height) panToPoint(width / 2, height / 2);
++      });
++    }, [getLayoutSize, panToPoint]);
++
+     // Refit when the container resizes or devicePixelRatio changes (e.g. browser zoom),
+     // either of which can leave the canvases a fractional number of device pixels again.
+     useEffect(() => {
+@@ -184,6 +195,7 @@ export const CanvasContainer = forwardRef<CanvasContainerHandle, CanvasContainer
+         selectionCtxRef.current = selection.getContext('2d')!;
+ 
+         fitToContainer();
++        centerShortMap();
+ 
+         pixelsRef.current = new Uint8ClampedArray(4 * BUFFER_WIDTH * height);
+       },
+@@ -418,7 +430,7 @@ export const CanvasContainer = forwardRef<CanvasContainerHandle, CanvasContainer
+ 
+       zoomIn() { zoomIn(); },
+       zoomOut() { zoomOut(); },
+-      resetZoom() { fitToContainer(); reset(); },
++      resetZoom() { fitToContainer(); reset(); centerShortMap(); },
+     }));
+ 
+     return (
+diff --git a/src/components/LanguageDropdown.tsx b/src/components/LanguageDropdown.tsx
+index 3f0dd87..aad55ac 100644
+--- a/src/components/LanguageDropdown.tsx
++++ b/src/components/LanguageDropdown.tsx
+@@ -34,7 +34,7 @@ export default function LanguageDropdown() {
+         ...items
+       ], selectedKeys: [i18n.resolvedLanguage ?? i18n.language]
+     }}>
+-      <Button icon={<GlobalOutlined />} />
++      <Button aria-label="Idioma" icon={<GlobalOutlined />} />
+     </Dropdown>
+   );
+ }
 diff --git a/src/components/Navbar.tsx b/src/components/Navbar.tsx
-index e5fce93..4519e18 100644
+index e5fce93..9a2add0 100644
 --- a/src/components/Navbar.tsx
 +++ b/src/components/Navbar.tsx
 @@ -134,6 +134,7 @@ export function Navbar({
    return (
      <>
        <Space wrap align="center">
-+        <a href="/" style={{ marginRight: 8 }}>← Status</a>
++        <a href="/" style={{ marginRight: 8, display: 'inline-block', padding: '10px 6px' }}>← Status</a>
          <span style={{ marginRight: 8, fontFamily: 'inherit' }}>TerraMap</span>
  
          <Space.Compact>
+@@ -284,7 +285,7 @@ export function Navbar({
+                 <Button>{t('view')}</Button>
+               </Dropdown>
+               <Dropdown menu={{ items: themeMenuItems, selectedKeys: [themeName] }}>
+-                <Button icon={isDarkMode ? <MoonOutlined /> : <SunOutlined />} />
++                <Button aria-label="Tema" icon={isDarkMode ? <MoonOutlined /> : <SunOutlined />} />
+               </Dropdown>
+               <LanguageDropdown />
+             </Space.Compact>
+@@ -311,7 +312,7 @@ export function Navbar({
+         {
+           !worldLoaded && (
+             <Dropdown menu={{ items: themeMenuItems, selectedKeys: [themeName] }}>
+-              <Button icon={isDarkMode ? <MoonOutlined /> : <SunOutlined />} />
++              <Button aria-label="Tema" icon={isDarkMode ? <MoonOutlined /> : <SunOutlined />} />
+             </Dropdown>
+           )
+         }
+@@ -335,6 +336,7 @@ export function Navbar({
+         }}>
+           <Button
+             type="link"
++            aria-label="Sobre o TerraMap"
+             icon={<QuestionCircleOutlined />}
+             style={{ marginLeft: 'auto' }}
+           />
 diff --git a/src/components/StatusBar.tsx b/src/components/StatusBar.tsx
 index fc291eb..e4130f6 100644
 --- a/src/components/StatusBar.tsx
@@ -151,6 +229,20 @@ index fc291eb..e4130f6 100644
  import type { Status } from '../lib/status';
  import type { WorldPosition } from '../lib/tileDisplayFields';
  import type { WorldTile } from '../types/settings';
+diff --git a/src/components/ToolbarButton.tsx b/src/components/ToolbarButton.tsx
+index 9a581f1..13ec3d5 100644
+--- a/src/components/ToolbarButton.tsx
++++ b/src/components/ToolbarButton.tsx
+@@ -58,7 +58,8 @@ export default function ToolbarButton(
+       {shortcutHandler && <ShortcutTag handler={shortcutHandler} />}
+     </Space>
+   }>
+-    <Button icon={resolvedIcon} onClick={onClick} disabled={disabled} loading={loading}>
++    <Button icon={resolvedIcon} onClick={onClick} disabled={disabled} loading={loading}
++      aria-label={children ? undefined : label /* terraria.bobagi.space: icon-only buttons need a name */}>
+       {children}
+     </Button>
+   </Tooltip>);
 diff --git a/src/hooks/useThemeName.ts b/src/hooks/useThemeName.ts
 index 1dafecd..6e8ec69 100644
 --- a/src/hooks/useThemeName.ts

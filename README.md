@@ -19,7 +19,7 @@ Live example: **https://terraria.bobagi.space**
 ![Screenshot](docs/screenshot.png)
 
 Built as a companion to the
-**[Terraria tModLoader Ubuntu Server guide](https://github.com/Bobagi/Terraria-tModLoader-Ubuntu-Server)** —
+**[Terraria tModLoader Ubuntu Server guide](https://github.com/Bobagi/Terraria-tModLoader-Ubuntu-Server)**:
 follow that first to get the server itself running.
 
 ## How it works
@@ -140,6 +140,19 @@ items). It also accepts the original `Item_<id>.png` / `Buff_<id>.png` names.
 > Use the **tModLoader client** install's `Content/Images` for full coverage - the
 > *dedicated server's* copy only ships ~332 (mostly banner) sprites. `public/sprites/`
 > is git-ignored: these are Re-Logic assets - **never commit them.**
+
+### Mod boss icons
+
+Bosses added by other mods (via Boss Checklist, see the mod README) show their map-head
+icon when it has been extracted from the installed `.tmod` files:
+
+```bash
+python3 -I tools/build-modboss-icons.py   # writes public/sprites/modboss/<key>.png
+pm2 restart terraria-status               # re-detect the icon set
+```
+
+Same rule as the other sprites: the art belongs to each mod's authors, `public/sprites/`
+stays git-ignored. A boss without an icon file shows its name only.
 
 ## World map (`/mapa/`)
 

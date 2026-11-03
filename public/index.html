@@ -206,6 +206,9 @@
   .fill.cpu.warn{--c1:#ffb648;--c2:#ff8a3c}
   .fill.cpu.hot{--c1:#ff7a4d;--c2:#ff3b57}
   .fill.ram{--c1:#5aa9ff;--c2:#c58bff}
+  .fill.tps{--c1:#3bd07a;--c2:#4fd6ff}
+  .fill.tps.warn{--c1:#ffb648;--c2:#ff8a3c}
+  .fill.tps.hot{--c1:#ff7a4d;--c2:#ff3b57}
 
   /* ---- boss checklist ---- */
   .boss-head{display:flex;align-items:center;gap:12px;margin-bottom:14px}
@@ -391,6 +394,24 @@
   footer a{color:var(--ink-dim)}
   .disclaimer{margin-top:10px;opacity:.7;max-width:640px;margin-inline:auto}
 
+  .ritem .rping{flex:none;margin-left:auto;font-family:ui-monospace,Consolas,monospace;font-size:.72rem;font-weight:700;
+    padding:2px 7px;border-radius:6px;border:1px solid #3a3560;color:var(--green);background:rgba(0,0,0,.25)}
+  .ritem .rping.mid{color:var(--yellow)}
+  .ritem .rping.bad{color:var(--red)}
+  .ritem .rping+.chev{margin-left:6px}
+  .news{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+  .news li{display:grid;grid-template-columns:3.4rem minmax(0,1fr);gap:10px;align-items:baseline}
+  .news time{font-family:ui-monospace,Consolas,monospace;font-size:.8rem;font-weight:700;color:var(--yellow);text-shadow:var(--shadow)}
+  .news a{color:var(--cyan)}
+  .cmds{margin:0;display:grid;grid-template-columns:auto minmax(0,1fr);gap:9px 14px;align-items:baseline}
+  .cmds dt{margin:0}
+  .cmds dd{margin:0;color:var(--ink-dim)}
+  .cmds code,.news code{font-family:ui-monospace,Consolas,monospace;color:var(--cyan);background:rgba(0,0,0,.28);
+    padding:1px 6px;border-radius:5px;border:1px solid #3a3560}
+  .cmd-note{margin:14px 0 0}
+  .toast.err{color:var(--red)}
+  .boss img.modhead{object-fit:contain;image-rendering:pixelated}
+  .boss .bk{font-size:.58rem;letter-spacing:.08em;text-transform:uppercase;color:var(--gray)}
   .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);opacity:0;
     background:#211d43;border:2px solid var(--green);color:var(--green);padding:10px 18px;border-radius:8px;
     font-weight:700;text-shadow:var(--shadow);transition:.25s;pointer-events:none;z-index:9}
@@ -445,7 +466,7 @@
       </div>
       <div class="pill-row">
         <span class="pill exp">⚔ Expert</span>
-        <span class="pill size">🗺 Mundo pequeno</span>
+        <span class="pill size">🗺 <span id="pillSize">Mundo</span></span>
         <span class="pill slots">👥 <span id="pillSlots">8</span> vagas</span>
         <span class="pill lock">🔒 Com senha</span>
       </div>
@@ -472,7 +493,7 @@
         <h2 class="panel-title hud"><span class="sec-ic" style="color:var(--orange)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a6 6 0 0 1 2 11.7V22h-4v-8.3A6 6 0 0 1 12 2z"/></svg></span>O mundo</h2>
         <ul class="facts">
           <li><span class="fk">Nome</span><span class="fv" id="worldName">Hyperborea</span></li>
-          <li><span class="fk">Tamanho</span><span class="fv">8400 x 1200 (pequeno dobrado)</span></li>
+          <li><span class="fk">Tamanho</span><span class="fv" id="worldSize">-</span></li>
           <li><span class="fk">Dificuldade</span><span class="fv" style="color:var(--orange)">Expert</span></li>
           <li><span class="fk">Máx. de jogadores</span><span class="fv">8</span></li>
           <li><span class="fk">Último save</span><span class="fv" id="lastSave">-</span></li>
@@ -513,6 +534,10 @@
           <div class="top"><span class="name">Memória (RAM)</span><span class="val" id="ramVal">-</span></div>
           <div class="bar"><div class="fill ram" id="ramFill"></div></div>
         </div>
+        <div class="vital" title="O Terraria simula o mundo 60 vezes por segundo. Abaixo disso o próprio servidor está engasgando, e todo mundo sente lag.">
+          <div class="top"><span class="name">Velocidade do mundo</span><span class="val" id="tps">-</span></div>
+          <div class="bar"><div class="fill tps" id="tpsFill"></div></div>
+        </div>
         <div class="chips">
           <div class="chip"><div class="k">No ar há</div><div class="v" id="uptime">-</div></div>
           <div class="chip"><div class="k">Reinícios</div><div class="v" id="restarts">-</div></div>
@@ -533,6 +558,14 @@
         <ul class="bosses" id="bossList"></ul>
         <h3 class="boss-sub">Eventos e minibosses</h3>
         <ul class="bosses" id="eventList"></ul>
+        <div id="modBossBox" hidden>
+          <h3 class="boss-sub" id="modBossTitle">Bosses dos mods</h3>
+          <div class="boss-head">
+            <div class="bar" role="img" id="modBossBar"><div class="fill boss" id="modBossFill"></div></div>
+            <span class="boss-count" id="modBossCount">-</span>
+          </div>
+          <ul class="bosses" id="modBossList"></ul>
+        </div>
       </section>
     </div>
 
@@ -542,6 +575,33 @@
         <h2 class="panel-title hud"><span class="sec-ic" style="color:var(--purple)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l7 7-7 13-7-13z"/></svg></span>Mods do servidor</h2>
         <p class="note">Pra entrar você precisa dos <b>mesmos <span id="modCount">7</span> mods</b>. O servidor baixa sozinho no join, mas assinar na Workshop deixa mais rápido. O Fargo's Souls traz itens fortes e bosses novos, e o <b>Eternity Mode</b> continua desligado.</p>
         <div class="mods" id="mods"></div>
+      </section>
+    </div>
+
+    <!-- what changed lately -->
+    <div class="col-7">
+      <section class="panel">
+        <h2 class="panel-title hud"><span class="sec-ic" style="color:var(--yellow)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.6 6.3L21 9l-5 4.4L17.5 20 12 16.6 6.5 20 8 13.4 3 9l6.4-.7z"/></svg></span>Novidades</h2>
+        <ul class="news">
+          <li><time datetime="2026-11-03">03/11</time><span><b>O mundo dobrou de largura.</b> Passando o antigo oceano da direita tem um mundo novo inteiro: Carmesim, outra Selva com Templo, Neve, Deserto com Pirâmide, outra Dungeon e Shimmer. Do lado novo estão os minérios que faltavam (Chumbo, Platina, Paládio, Mithril e Titânio), então agora tem os 16.</span></li>
+          <li><time datetime="2026-11-03">03/11</time><span><b>Mais de um Pylon por bioma</b>, com o mod No Pylon Restrictions. As outras regras continuam: NPCs por perto, bioma certo e alcance.</span></li>
+          <li><time datetime="2026-11-03">03/11</time><span><b>Comando <code>/ping</code></b> no chat mostra o seu ping até o servidor.</span></li>
+          <li><time datetime="2026-11-01">01/11</time><span><b>Fargo's Mutant e Fargo's Souls</b> entraram, e o <a href="/mapa/">mapa do mundo</a> abre direto no navegador.</span></li>
+        </ul>
+      </section>
+    </div>
+
+    <!-- chat commands -->
+    <div class="col-5">
+      <section class="panel">
+        <h2 class="panel-title hud"><span class="sec-ic" style="color:var(--cyan)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v12H8l-4 4z"/></svg></span>Comandos do chat</h2>
+        <dl class="cmds">
+          <dt><code>/ping</code></dt><dd>Seu ping até o servidor (só você vê).</dd>
+          <dt><code>/playing</code></dt><dd>Quem está online agora.</dd>
+          <dt><code>/roll</code></dt><dd>Sorteia um número de 1 a 100.</dd>
+          <dt><code>/p texto</code></dt><dd>Mensagem só para o seu time.</dd>
+        </dl>
+        <p class="note cmd-note">Até ~80 ms de ping é bom e até ~150 ms é jogável. Se a <b>velocidade do mundo</b> cair abaixo de 60/s, o lag é do servidor, não da sua conexão.</p>
       </section>
     </div>
   </div>
@@ -759,7 +819,8 @@
     $('mTitle').textContent=p.name;
     var sess=$('mSession');sess.textContent='';
     sess.appendChild(el('span','dotg'));
-    sess.appendChild(document.createTextNode('online '+(p.onlineForSec!=null?('há '+fmtDur(p.onlineForSec)):'agora')));
+    sess.appendChild(document.createTextNode('online '+(p.onlineForSec!=null?('há '+fmtDur(p.onlineForSec)):'agora')
+      +(p.stats&&typeof p.stats.pingMs==='number'?(' · ping '+p.stats.pingMs+' ms'):'')));
     var body=$('mBody');body.textContent='';
     var st=p.stats;
     if(st){
@@ -921,6 +982,11 @@
         var rn=el('span','rn');rn.appendChild(document.createTextNode(p.name));
         if(dead)rn.appendChild(el('span','rdead','💀'));
         btn.appendChild(rn);
+        var ping=p.stats&&p.stats.pingMs;
+        if(typeof ping==='number'){
+          var rp=el('span','rping'+(ping>=150?' bad':ping>=80?' mid':''),ping+' ms');
+          rp.title='ping até o servidor';btn.appendChild(rp);
+        }
         btn.appendChild(el('span','chev','›'));
         btn.addEventListener('click',function(){openModal(p.name);});
         li.appendChild(btn);roster.appendChild(li);
@@ -948,6 +1014,15 @@
     if(d.resources.netRxText)net=d.resources.netRxText+' / '+d.resources.netTxText;
     $('net').textContent=net;
     $('disk').textContent=fmtBytes(d.resources.diskWorldBytes);
+    // world simulation speed, only measured while someone is playing
+    var tps=d.world&&d.world.live&&d.world.live.tps,te=$('tps');
+    var tf=$('tpsFill');
+    if(typeof tps==='number'){te.textContent=Math.round(tps)+' / 60 por s';
+      tf.style.width=Math.min(100,tps/60*100)+'%';tf.className='fill tps'+(tps<50?' hot':tps<58?' warn':'');}
+    else{te.textContent=d.players&&d.players.count?'medindo…':'parado';te.title=d.players&&d.players.count?'':'o servidor só simula o mundo com alguém jogando';tf.style.width='0';tf.className='fill tps';}
+    var tiles=d.world&&d.world.tiles;
+    if(tiles){$('worldSize').textContent=tiles.width+' x '+tiles.height+sizeName(tiles);
+      $('pillSize').textContent='Mundo '+tiles.width+' x '+tiles.height;}
 
     // world + version freshness
     if(d.world&&d.world.name)$('worldName').textContent=d.world.name;
@@ -1001,6 +1076,12 @@
     if(d.mods)$('modCount').textContent=d.mods.length;
   }
 
+  // Vanilla presets by name; a widened small world (8400 x 1200) gets its own label.
+  function sizeName(t){
+    var k=t.width+'x'+t.height;
+    var n={'4200x1200':'pequeno','6400x1800':'médio','8400x2400':'grande','8400x1200':'pequeno dobrado'}[k];
+    return n?' ('+n+')':'';
+  }
   // Progression order, names as the game shows them in pt-BR. Numbers are boss head
   // sprites (NPCID.Sets.BossHeadTextures); 'item:' uses an item sprite instead.
   var BOSSES=[
@@ -1038,7 +1119,8 @@
     if(key===bossKey)return;
     bossKey=key;
     var list=BOSSES.map(function(b){
-      return b[0]==='evilBoss'?[b[0],p.crimson?'Cérebro de Cthulhu':'Devorador de Mundos',p.crimson?23:2]:b;
+      // the widened world has Corruption AND Crimson; the game keeps one flag for either boss
+      return b[0]==='evilBoss'?[b[0],'Devorador ou Cérebro',p.crimson?23:2]:b;
     });
     var done=list.filter(function(b){return p.downed[b[0]];}).length;
     var bl=$('bossList'),ev=$('eventList');bl.textContent='';ev.textContent='';
@@ -1047,7 +1129,32 @@
     $('bossCount').textContent=done+'/'+list.length;
     $('bossFill').style.width=(done/list.length*100)+'%';
     $('bossBar').setAttribute('aria-label',done+' de '+list.length+' bosses derrotados');
+    renderModBosses(p.modBosses||[]);
     $('bossPanel').hidden=false;
+  }
+  var MOD_NAMES={FargowiltasSouls:"Fargo's Souls",Fargowiltas:"Fargo's Mutant"};
+  function renderModBosses(list){
+    var box=$('modBossBox'),ul=$('modBossList');ul.textContent='';
+    if(!list.length){box.hidden=true;return;}
+    var mods=[];list.forEach(function(b){if(mods.indexOf(b.mod)<0)mods.push(b.mod);});
+    $('modBossTitle').textContent='Bosses dos mods ('+mods.map(function(m){return MOD_NAMES[m]||m;}).join(', ')+')';
+    list.forEach(function(b){
+      var li=el('li','boss'+(b.downed?' done':'')+(b.kind!=='boss'?' minor':''));
+      if(b.icon){
+        var img=document.createElement('img');img.alt='';img.width=48;img.height=48;img.className='modhead';
+        img.src='/sprites/modboss/'+b.icon+'.png';img.onerror=function(){img.remove();};li.appendChild(img);
+      }
+      li.appendChild(el('span','bn',b.name));
+      if(b.kind==='miniboss')li.appendChild(el('span','bk','miniboss'));
+      if(b.downed){var mark=el('span','bs','✓');mark.setAttribute('aria-hidden','true');li.appendChild(mark);}
+      li.appendChild(el('span','sr-only',b.downed?' (derrotado)':' (ainda não derrotado)'));
+      ul.appendChild(li);
+    });
+    var done=list.filter(function(b){return b.downed;}).length;
+    $('modBossCount').textContent=done+'/'+list.length;
+    $('modBossFill').style.width=(done/list.length*100)+'%';
+    $('modBossBar').setAttribute('aria-label',done+' de '+list.length+' bosses de mods derrotados');
+    box.hidden=false;
   }
 
   function tick(){
@@ -1060,9 +1167,10 @@
   // copy address
   function copyAddr(){
     var txt=$('addr').textContent.trim();
-    var done=function(){var t=$('toast');t.classList.add('show');setTimeout(function(){t.classList.remove('show');},1600);};
-    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(done,done);}
-    else{var ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');}catch(e){}document.body.removeChild(ta);done();}
+    var show=function(ok){var t=$('toast');t.textContent=ok?'Endereço copiado!':'Não deu pra copiar, selecione o IP e copie à mão';
+      t.classList.toggle('err',!ok);t.classList.add('show');setTimeout(function(){t.classList.remove('show');},ok?1600:3200);};
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(function(){show(true);},function(){show(false);});}
+    else{var ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();var ok=false;try{ok=document.execCommand('copy');}catch(e){}document.body.removeChild(ta);show(ok);}
   }
   $('copyBtn').addEventListener('click',copyAddr);
 
