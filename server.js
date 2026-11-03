@@ -18,6 +18,7 @@ const crypto = require('crypto');
 const { execFile } = require('child_process');
 const { isCompleteWorld } = require('./world-snapshot');
 const { parsePlaying, NAME_MAX } = require('./console-players');
+const { sanitizeModBosses, pickLive } = require('./world-extras');
 
 // ---- deploy config (override via environment; defaults match bobagi.space) --
 const PORT = parseInt(process.env.STATUS_PORT || '3063', 10);
@@ -98,7 +99,7 @@ let snapshot = {
   // list: [{ name, onlineForSec, stats|null }]. statsSource=true when the optional
   // companion mod is feeding playerstats.json (life/gear/inventory); false → names only.
   players: { count: 0, max: WORLD.maxPlayers, list: [], statsSource: false, sampledAt: null },
-  world: Object.assign({ lastSaveAt: null, live: null, progress: null }, WORLD),
+  world: Object.assign({ lastSaveAt: null, live: null, progress: null, tiles: null }, WORLD),
   server: SERVER,
   mods: MODS,
 };
@@ -204,8 +205,22 @@ function readWorldProgress() {
     snapshot.world.progress = {
       crimson: world.crimson === true,
       downed,
+      modBosses: sanitizeModBosses(world.modBosses, modBossIcons),
     };
+    if (Number.isInteger(world.width) && Number.isInteger(world.height)
+        && world.width > 0 && world.width <= 8401 && world.height > 0 && world.height <= 2401) {
+      snapshot.world.tiles = { width: world.width, height: world.height };
+    }
   } catch (_) { /* keep last */ }
+}
+
+// Icon files written by tools/build-modboss-icons.py. The export names a texture path;
+// only a key that maps to one of these files ever reaches the page.
+const MODBOSS_DIR = path.join(PUBLIC_DIR, 'sprites', 'modboss');
+let modBossIcons = new Set();
+function loadModBossIcons() {
+  try { modBossIcons = new Set(fs.readdirSync(MODBOSS_DIR).filter((f) => /^[A-Za-z0-9_]+\.png$/.test(f)).map((f) => f.slice(0, -4))); }
+  catch (_) { modBossIcons = new Set(); }
 }
 
 async function collectPlayers() {
@@ -238,7 +253,7 @@ async function collectPlayers() {
   for (const n of Object.keys(sessions)) if (!names.includes(n)) delete sessions[n];
 
   snapshot.players.statsSource = !!mod;
-  snapshot.world.live = mod ? mod.world : null;   // live day/night, progression, downed bosses (or null)
+  snapshot.world.live = mod ? pickLive(mod.world) : null;   // live day/night, progression, events, tick rate (or null)
   snapshot.players.list = names.map((n) => ({
     name: n,
     onlineForSec: Math.floor((now - sessions[n]) / 1000),
@@ -346,16 +361,26 @@ function serveWorld(req, res) {
   res.end(buf);
 }
 
+// fs.readFile throws synchronously on some bad paths instead of calling back;
+// turn that into an ordinary error so no request can crash the server.
+function readFileSafe(file, cb) {
+  try { fs.readFile(file, cb); }
+  catch (e) { cb(e); }
+}
+
 function serveStatic(req, res) {
   let rel;
   try { rel = decodeURIComponent(req.url.split('?')[0]); }
   catch (_) { res.writeHead(400); return res.end('bad request'); } // malformed %-escape must not crash the process
+  // A NUL byte (%00) makes fs throw synchronously, which used to kill the process:
+  // one request was enough to take the site down.
+  if (rel.includes('\0')) { res.writeHead(400); return res.end('bad request'); }
   if (rel.endsWith('/')) rel += 'index.html';
   const file = path.normalize(path.join(PUBLIC_DIR, rel));
   // Prefix check WITH the separator, bare startsWith(PUBLIC_DIR) would also
   // match a sibling like public-evil/.
   if (!file.startsWith(PUBLIC_DIR + path.sep)) { res.writeHead(403); return res.end('forbidden'); }
-  fs.readFile(file, (err, buf) => {
+  readFileSafe(file, (err, buf) => {
     if (err) { res.writeHead(404, { 'content-type': 'text/plain' }); return res.end('not found'); }
     res.writeHead(200, {
       'content-type': TYPES[path.extname(file)] || 'application/octet-stream',
@@ -396,6 +421,7 @@ http.createServer((req, res) => {
 }).listen(PORT, HOST, () => {
   console.log(`terraria-status listening on http://${HOST}:${PORT}`);
   SERVER.sprites = { item: hasSprites('item'), buff: hasSprites('buff'), npc: hasSprites('npc') };
+  loadModBossIcons();
   fastLoop(); diskLoop(); worldLoop();
   setTimeout(playerLoop, 3000); // let the first inspect land so `online` is known
 
