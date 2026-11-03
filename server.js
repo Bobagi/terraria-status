@@ -49,6 +49,7 @@ const MODS = [
   { id: '2570931073', name: "Fargo's Mutant Mod", rarity: 'red', desc: 'Construção instantânea (Instabridge, InstaHouse, Instavator) e o NPC Mutant, que vende invocações de bosses.' },
   { id: '2815540735', name: "Fargo's Souls Mod", rarity: 'purple', desc: 'Encantamentos, Souls e bosses novos. O Eternity Mode é opcional: só liga com o item Mutant\'s Gift.' },
   { id: '3222493606', name: 'Luminance', rarity: 'gray', desc: 'Biblioteca de suporte: o Fargo\'s Souls precisa dela (instala junto).' },
+  { id: '2812377597', name: 'No Pylon Restrictions', rarity: 'cyan', desc: 'Permite mais de um Pylon de cada bioma, já que o mundo dobrou. O resto segue como no jogo normal: NPCs por perto, bioma certo e alcance.' },
 ];
 
 const WORLD = {
