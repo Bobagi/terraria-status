@@ -54,7 +54,7 @@ e.g. `/data/tModLoader` in the Docker image). The status app reads that file if
 it's present and fresh (< 60 s old) and merges it into `/api/status`.
 
 Each item carries a vanilla `id` (or `-1` for modded items), a coarse `kind` (weapon /
-tool / armor / accessory / potion / block / ammo / coin / material) and a `rarity` int —
+tool / armor / accessory / potion / block / ammo / coin / material) and a `rarity` int, 
 the site uses those to draw a rarity-framed category glyph, upgrading to a real pixel
 sprite when `public/sprites/item/<id>.png` is present.
 
@@ -90,11 +90,15 @@ created by the server and synced with vanilla packets.
 | `give <player> <item> [amount] [prefix]` | Item by id or name (`Terra_Blade`), any amount up to 50 piles |
 | `coins <player> <platinum> [gold] [silver] [copper]` | Coins |
 | `heal <player\|all>` | Fills life and mana (drops hearts and stars, the client owns these values) |
+| `bag <player>` | Lists the player's Void Bag, read only: the client owns that storage |
 | `buff <player> <buff> [seconds]` | Applies a buff |
 | `tp <player> <player\|spawn\|dungeon\|x y>` | Teleports, `x y` in tiles |
 | `spawn <npc\|boss> <player> [amount]` | Spawns near the player, up to 20 |
+| `coffin <player\|reset>` | Moves the Fargo's Souls Cursed Coffin arena onto the player and spawns the boss; `reset` removes it after the fight |
+| `oregen <cobalt\|palladium\|mythril\|orichalcum\|adamantite\|titanium> [veins]` | Adds new ore veins underground, 60 by default, up to 300 |
 | `clearhostile` | Removes enemies and bosses without drops, keeps critters and target dummies |
 | `event <bloodmoon\|eclipse\|goblins\|frost\|pirates\|martians\|pumpkinmoon\|frostmoon\|rain\|stop>` | World events, `stop` ends them all |
+| `pings` | Network latency of each online player, as the server's kernel measures it on the TCP connection |
 
 ## Build
 
@@ -113,6 +117,14 @@ cd /path/to/tModLoader/ModSources/StatusExport
 PATH=/tmp/sdk:$PATH HOME=/tmp dotnet build -c Release
 # → StatusExport.tmod lands in ~/.local/share/Terraria/tModLoader/Mods/
 ```
+
+## Ore drops
+
+`OreDrops` makes every ore block drop 5 times (`Multiplier` in `AdminCommands.cs`), including blocks a player placed.
+
+## Full life on respawn
+
+Players normally respawn at half life. `RespawnHeal` notices the respawn on the server and sends the heal packet, so everyone comes back at full life with nothing installed on the client.
 
 ## Reconnecting after a dropped connection
 
@@ -150,3 +162,10 @@ enabled across restarts and the guide's daily auto-update.
 - Writes to the save dir only; no network, no ports, reads no secrets.
 - The status site strips player IPs regardless and never exposes the console log.
 - If you'd rather not publish inventory, trim `BuildPlayer` to taste.
+
+### `/ping` in game
+
+`/ping` in the chat answers only the player who typed it: their round trip to the server and
+its variation, read from Linux `TCP_INFO` on that player's connection (`Ping.cs`). Nothing to
+install on the client. Above about 150 ms Terraria starts to feel laggy.
+

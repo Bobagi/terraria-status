@@ -248,6 +248,22 @@ namespace StatusExport
 		}
 	}
 
+	public class BagCommand : AdminCommand
+	{
+		public override string Command => "bag";
+		public override string Usage => "bag <jogador>";
+		public override string Description => "Lista os itens da Void Bag";
+
+		protected override void Execute(CommandCaller caller, string[] args)
+		{
+			Need(args, 1);
+			var p = FindPlayer(args[0]);
+			var items = p.bank4.item.Where(item => item != null && !item.IsAir).ToList();
+			foreach (var item in items) caller.Reply($"{item.type} {item.Name} x{item.stack}");
+			caller.Reply($"{items.Count} item(ns) na Void Bag de {p.name}");
+		}
+	}
+
 	public class BuffCommand : AdminCommand
 	{
 		public override string Command => "buff";
@@ -315,6 +331,122 @@ namespace StatusExport
 				}
 			}
 			caller.Reply($"{count}x {Lang.GetNPCNameValue(type)} perto de {p.name}");
+		}
+	}
+
+	// Fargo's Souls only keeps the Cursed Coffin alive within 1000 px of its arena,
+	// and worlds older than the mod have none: the Coffin Roominator builds one on
+	// the client alone, so the server never learns where it is. This moves the
+	// server's arena onto the player and spawns the boss there. The position is
+	// saved with the world, and at load it turns into an unbreakable area, so run
+	// `coffin reset` after the fight.
+	public class CoffinCommand : AdminCommand
+	{
+		public override string Command => "coffin";
+		public override string Usage => "coffin <jogador|reset>";
+		public override string Description => "Move a arena do Cursed Coffin para o jogador e invoca o boss";
+
+		protected override void Execute(CommandCaller caller, string[] args)
+		{
+			Need(args, 1);
+			if (!ModLoader.TryGetMod("FargowiltasSouls", out Mod souls)) throw new AdminError("Fargo's Souls nao esta carregado");
+			if (args[0] == "reset")
+			{
+				SetArena(souls, Point.Zero);
+				caller.Reply("arena do Cursed Coffin removida");
+				return;
+			}
+
+			var p = FindPlayer(args[0]);
+			SetArena(souls, p.Center.ToTileCoordinates());
+
+			int index = NPC.NewNPC(Source, (int)p.Center.X, (int)p.Center.Y - 240, souls.Find<ModNPC>("CursedCoffin").Type);
+			NPC boss = Main.npc[index];
+			if (index >= Main.maxNPCs || !boss.active) throw new AdminError("o boss nao nasceu");
+			boss.ModNPC.GetType().GetField("LockVector1").SetValue(boss.ModNPC, p.Center);
+			boss.netUpdate = true;
+			NetMessage.SendData(MessageID.SyncNPC, -1, -1, null, index);
+			caller.Reply($"{Lang.GetNPCNameValue(boss.type)} em {p.name}, arena em volta dele");
+		}
+
+		// Skips CoffinArena.SetArenaPosition on purpose: it would also lock the
+		// tiles around the player for the rest of the session.
+		private static void SetArena(Mod souls, Point center)
+		{
+			souls.Code.GetType("FargowiltasSouls.Core.Systems.WorldSavingSystem")
+				.GetProperty("CoffinArenaCenter").SetValue(null, center);
+
+			var arena = souls.Code.GetType("FargowiltasSouls.Content.WorldGeneration.CoffinArena");
+			int width = (int)arena.GetField("Width").GetValue(null);
+			int height = (int)arena.GetField("Height").GetValue(null);
+			arena.GetField("Rectangle").SetValue(null, new Rectangle(center.X - width / 2, center.Y - height / 2, width, height));
+			NetMessage.SendData(MessageID.WorldData);
+		}
+	}
+
+	// Each ore block drops this many times, on the server, so clients need nothing.
+	public class OreDrops : GlobalTile
+	{
+		private const int Multiplier = 5;
+
+		public override void Drop(int i, int j, int type)
+		{
+			if (!TileID.Sets.Ore[type]) return;
+			int item = TileLoader.GetItemDropFromTypeAndStyle(type);
+			if (item > ItemID.None) Item.NewItem(new EntitySource_TileBreak(i, j), i * 16, j * 16, 16, 16, item, Multiplier - 1);
+		}
+	}
+
+	// Players come back from death at half life. The client owns that value, so the
+	// server tops it up with the heal packet the client accepts.
+	public class RespawnHeal : ModSystem
+	{
+		private readonly bool[] _wasDead = new bool[Main.maxPlayers];
+
+		public override void PostUpdateEverything()
+		{
+			if (!Main.dedServ) return;
+			for (int i = 0; i < Main.maxPlayers; i++)
+			{
+				Player p = Main.player[i];
+				bool dead = p.active && p.dead;
+				if (_wasDead[i] && p.active && !dead)
+					NetMessage.SendData(MessageID.PlayerHeal, i, -1, null, i, p.statLifeMax2);
+				_wasDead[i] = dead;
+			}
+		}
+	}
+
+	// Adds veins the way smashing an altar does: cavern layer down to the Underworld.
+	public class OreGenCommand : AdminCommand
+	{
+		private const int MaxVeins = 300;
+		private static readonly Dictionary<string, ushort> Ores = new Dictionary<string, ushort>
+		{
+			["cobalt"] = TileID.Cobalt, ["palladium"] = TileID.Palladium,
+			["mythril"] = TileID.Mythril, ["orichalcum"] = TileID.Orichalcum,
+			["adamantite"] = TileID.Adamantite, ["titanium"] = TileID.Titanium,
+		};
+
+		public override string Command => "oregen";
+		public override string Usage => "oregen <" + string.Join("|", Ores.Keys) + "> [veios]";
+		public override string Description => "Gera veios novos de minerio de Hardmode no subterraneo";
+
+		protected override void Execute(CommandCaller caller, string[] args)
+		{
+			Need(args, 1);
+			if (!Ores.TryGetValue(args[0].ToLowerInvariant(), out ushort tile)) throw new AdminError("uso: " + Usage);
+			int veins = args.Length > 1 ? Int(args[1], "veios") : 60;
+			if (veins < 1 || veins > MaxVeins) throw new AdminError($"veios entre 1 e {MaxVeins}");
+
+			int top = (int)Main.rockLayer, bottom = Main.maxTilesY - 200;
+			for (int n = 0; n < veins; n++)
+			{
+				int x = WorldGen.genRand.Next(100, Main.maxTilesX - 100), y = WorldGen.genRand.Next(top, bottom);
+				WorldGen.OreRunner(x, y, WorldGen.genRand.Next(5, 9), WorldGen.genRand.Next(5, 9), tile);
+				NetMessage.SendTileSquare(-1, x, y, 20);
+			}
+			caller.Reply($"{veins} veios de {args[0]} gerados entre y {top} e {bottom}");
 		}
 	}
 
