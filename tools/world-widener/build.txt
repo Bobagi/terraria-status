@@ -1,0 +1,4 @@
+displayName = World Widener (temporary, server-side)
+author = Bobagi
+version = 0.1
+side = Server
