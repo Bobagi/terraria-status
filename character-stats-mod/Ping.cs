@@ -50,10 +50,12 @@ namespace StatusExport
 		}
 	}
 
-	// In-game chat: /ping shows only your own connection.
+	// In-game chat: /ping shows only your own connection. CommandType.Server means a
+	// player types it in chat and the server runs it (CommandType.Chat would run on the
+	// player's own game, which doesn't have this mod).
 	public class PingCommand : ModCommand
 	{
-		public override CommandType Type => CommandType.Chat;
+		public override CommandType Type => CommandType.Server;
 		public override string Command => "ping";
 		public override string Description => "Mostra o seu ping ate o servidor";
 
