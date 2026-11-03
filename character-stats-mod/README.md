@@ -62,11 +62,15 @@ sprite when `public/sprites/item/<id>.png` is present.
 { "updatedAt": "…",
   "world": { "dayTime": false, "timeText": "21:14", "hardMode": true,
              "bloodMoon": true, "progression": "Pós-Plantera",
-             "downed": { "plantera": true } },
+             "downed": { "plantera": true },
+             "width": 8400, "height": 1200, "tps": 59.9,
+             "modBosses": [{ "key": "FargowiltasSouls Mutant", "mod": "FargowiltasSouls",
+               "name": "Mutant", "kind": "boss", "progression": 23, "downed": false,
+               "head": "FargowiltasSouls/Content/Bosses/MutantBoss/MutantBoss_Head_Boss" }] },
   "players": [
     { "name": "Gustavo", "life": 280, "lifeMax": 400, "mana": 60, "manaMax": 200,
       "defense": 34, "difficulty": "Softcore", "dead": false, "respawnSec": 0,
-      "deaths": 7, "biome": "Selva", "inventoryCount": 41,
+      "deaths": 7, "pingMs": 55, "biome": "Selva", "inventoryCount": 41,
       "wealth": { "plat": 1, "gold": 24, "silver": 7, "copper": 88 },
       "held": { "id": 65, "name": "Enchanted Sword", "prefix": "Legendary",
                 "kind": "melee", "rarity": 3, "stack": 1 },
@@ -162,6 +166,15 @@ enabled across restarts and the guide's daily auto-update.
 - Writes to the save dir only; no network, no ports, reads no secrets.
 - The status site strips player IPs regardless and never exposes the console log.
 - If you'd rather not publish inventory, trim `BuildPlayer` to taste.
+
+### World extras
+
+- `tps`: world updates per second (`TickRate.cs`); 60 is full speed, lower means the server itself lags.
+  `null` while nobody plays, because the server sleeps then.
+- `modBosses`: every boss, miniboss and event other mods register with **Boss Checklist**, read through its
+  `GetBossInfoDictionary` call (`ModBosses.cs`). Vanilla entries stay in `downed`. `head` names the map-head
+  texture; the site only uses it to find an icon that `tools/build-modboss-icons.py` extracted.
+- `pingMs` per player: round trip from the kernel's TCP stats, the same number `/ping` shows.
 
 ### `/ping` in game
 

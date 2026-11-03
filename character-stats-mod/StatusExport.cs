@@ -228,7 +228,12 @@ namespace StatusExport
 				snowMoon = Main.snowMoon,
 				progression = stage,
 				crimson = WorldGen.crimson,
-				downed
+				width = Main.maxTilesX,
+				height = Main.maxTilesY,
+				// Server simulation speed: 60 is full speed, lower means the server itself lags.
+				tps = TickRate.Current,
+				downed,
+				modBosses = ModBosses.Snapshot(),
 			};
 		}
 
@@ -324,6 +329,8 @@ namespace StatusExport
 				dead = p.dead,
 				respawnSec = p.dead ? System.Math.Max(0, p.respawnTimer / 60) : 0,
 				deaths = DeathTracker.Get(p.name),
+				// Round trip to the server in ms, from the kernel's TCP stats (Ping.cs).
+				pingMs = PingProbe.Read(p.whoAmI) is { } ping ? (int?)System.Math.Round(ping.rtt) : null,
 				biome = Biome(p),
 				wealth,
 				held,
