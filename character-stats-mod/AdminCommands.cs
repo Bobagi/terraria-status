@@ -46,7 +46,7 @@ namespace StatusExport
 
 	public abstract class AdminCommand : ModCommand
 	{
-		protected const int MaxPiles = 50;
+		internal const int MaxPiles = 50;
 		protected const int MaxSpawns = 20;
 
 		public override CommandType Type => CommandType.Console;
@@ -129,7 +129,7 @@ namespace StatusExport
 		// Drops `stack` of an item on the player, split in max-stack piles. The
 		// client picks it up on the next frame, with or without inventory room left
 		// for it the pile stays on the ground next to them.
-		protected static void Drop(Player p, int type, int stack, int prefix = 0)
+		internal static void Drop(Player p, int type, int stack, int prefix = 0)
 		{
 			int max = Math.Max(1, ContentSamples.ItemsByType[type].maxStack);
 			if (stack / max + 1 > MaxPiles) throw new AdminError($"quantidade demais: limite de {MaxPiles} pilhas de {max}");
@@ -398,17 +398,18 @@ namespace StatusExport
 		}
 	}
 
-	// Players come back from death at half life. The client owns that value, so the
-	// server tops it up with the heal packet the client accepts. One heal sent the
-	// tick the server sees the revive was not enough in play, so the respawn opens a
-	// short window: every few ticks, while the life the client reports is below max,
-	// the server sends the difference. The revive is read straight from the client's
-	// spawn packet, so it doesn't depend on the server's copy of `dead`.
+	// Players come back from death at half life. Life is owned by the client: the
+	// heal packet and any value set here are ignored (a monitor over 12 respawns saw
+	// every one stay at half). Like the `heal` command, the server drops hearts on the
+	// player, which the client picks up and heals itself with. It checks twice after
+	// the revive, since the first pickups may still be on their way. The revive is
+	// read straight from the client's spawn packet, and from the server's `dead` flag.
 	public class RespawnHeal : ModSystem
 	{
-		private const int Window = 300;   // 5 s
-		private const int Every = 20;
-		private const int SpawnContextOffset = 13;   // byte id, 2x short pos, int timer, 2x short deaths
+		private const int Window = 150;                   // 2.5 s after the revive
+		private static readonly int[] CheckAt = { 120, 30 };   // ticks left: 0.5 s and 2 s in
+		private const int SpawnContextOffset = 13;        // byte id, 2x short pos, int timer, 2x short deaths
+		private const int HeartLife = 20;
 		private readonly bool[] _wasDead = new bool[Main.maxPlayers];
 		private readonly int[] _left = new int[Main.maxPlayers];
 
@@ -434,11 +435,14 @@ namespace StatusExport
 			{
 				Player p = Main.player[i];
 				if (!p.active) { _wasDead[i] = false; _left[i] = 0; continue; }
-				if (_wasDead[i] && !p.dead) _left[i] = Window;
+				if (_wasDead[i] && !p.dead && _left[i] <= 0) _left[i] = Window;
 				_wasDead[i] = p.dead;
 				if (_left[i] <= 0 || p.dead) continue;
-				if (_left[i]-- % Every == 0 && p.statLife < p.statLifeMax2)
-					NetMessage.SendData(MessageID.PlayerHeal, i, -1, null, i, p.statLifeMax2 - p.statLife);
+				_left[i]--;
+				if (Array.IndexOf(CheckAt, _left[i]) < 0 || p.statLife >= p.statLifeMax2) continue;
+				int hearts = Math.Min(AdminCommand.MaxPiles, (p.statLifeMax2 - p.statLife + HeartLife - 1) / HeartLife);
+				try { for (int h = 0; h < hearts; h++) AdminCommand.Drop(p, ItemID.Heart, 1); }
+				catch (Exception ex) { Mod.Logger.Warn("RespawnHeal: " + ex.Message); }
 			}
 		}
 	}
