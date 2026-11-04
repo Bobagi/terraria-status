@@ -343,7 +343,7 @@ namespace StatusExport
 				dead = p.dead,
 				respawnSec = p.dead ? System.Math.Max(0, p.respawnTimer / 60) : 0,
 				deaths = DeathTracker.Get(p.name),
-				// Round trip to the server in ms, from the kernel's TCP stats (Ping.cs).
+				// Round trip to the server in ms, measured end to end by PingEcho (Ping.cs).
 				pingMs = PingProbe.Read(p.whoAmI) is { } ping ? (int?)System.Math.Round(ping.rtt) : null,
 				biome = Biome(p),
 				wealth,

@@ -102,7 +102,7 @@ created by the server and synced with vanilla packets.
 | `oregen <cobalt\|palladium\|mythril\|orichalcum\|adamantite\|titanium> [veins]` | Adds new ore veins underground, 60 by default, up to 300 |
 | `clearhostile` | Removes enemies and bosses without drops, keeps critters and target dummies |
 | `event <bloodmoon\|eclipse\|goblins\|frost\|pirates\|martians\|pumpkinmoon\|frostmoon\|rain\|stop>` | World events, `stop` ends them all |
-| `pings` | Network latency of each online player, as the server's kernel measures it on the TCP connection |
+| `pings` | Round-trip latency of each online player (end-to-end echo, see `/ping` below) |
 
 ## Build
 
@@ -180,11 +180,20 @@ enabled across restarts and the guide's daily auto-update.
 - `downed.bloodMoon`, `eclipse`, `pumpkinMoon`, `frostMoon`, `flyingDutchman`, `martianSaucer`: vanilla
   never records these, so they come from Boss Checklist's own flags (only since it was installed).
   The four pillars and `oldOnesArmy` are vanilla flags.
-- `pingMs` per player: round trip from the kernel's TCP stats, the same number `/ping` shows.
+- `pingMs` per player: end-to-end round trip (`PingEcho`), the same number `/ping` shows.
 
 ### `/ping` in game
 
 `/ping` in the chat answers only the player who typed it: their round trip to the server and
-its variation, read from Linux `TCP_INFO` on that player's connection (`Ping.cs`). Nothing to
-install on the client. Above about 150 ms Terraria starts to feel laggy.
+its variation. Every 3 s the server sends the vanilla `ReleaseItemOwnership` message (39) for
+a free (inactive) item slot and times the client's automatic `ItemOwner` reply (22), which it
+then swallows (idea from the TShock [PingPlugin](https://github.com/simon311/PingPlugin)).
+Nothing to install on the client, and it works behind a tunnel: the old Linux `TCP_INFO`
+reading measured the tunnel agent (playit.gg on the same box), so everyone showed ~1 ms. That
+reading is kept only as a fallback for direct, public connections. The value includes up to
+one server tick (~17 ms), the latency the player feels in game. Above about 150 ms Terraria
+starts to feel laggy.
+
+Behind a tunnel every player also shares one private source address, so `GhostSessions`
+ignores equal addresses that are loopback/private and decides by the 5 s silence rule alone.
 

@@ -13,7 +13,7 @@ namespace StatusExport
 	// the dead session the moment its owner reconnects.
 	//
 	// Being connected under a name is not proof of being dead, so a session only
-	// goes when the newcomer shares its IP or when it has stopped talking. A live
+	// goes when the newcomer shares its (public) IP or when it has stopped talking. A live
 	// player can't be pushed out by someone else who picked the same name.
 	public class GhostSessions : ModSystem
 	{
@@ -62,11 +62,14 @@ namespace StatusExport
 			}
 		}
 
+		// Behind a tunnel (playit.gg) or a container port forward every player arrives from
+		// the same loopback/private address, so an equal address proves nothing there: only
+		// a public address counts, otherwise the silence rule alone decides.
 		private static bool SameAddress(RemoteClient a, RemoteClient b)
 		{
 			IPAddress first = (a.Socket?.GetRemoteAddress() as TcpAddress)?.Address;
 			IPAddress second = (b.Socket?.GetRemoteAddress() as TcpAddress)?.Address;
-			return first != null && first.Equals(second);
+			return first != null && !Addresses.IsShared(first) && first.Equals(second);
 		}
 	}
 }
