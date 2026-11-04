@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -398,10 +399,33 @@ namespace StatusExport
 	}
 
 	// Players come back from death at half life. The client owns that value, so the
-	// server tops it up with the heal packet the client accepts.
+	// server tops it up with the heal packet the client accepts. One heal sent the
+	// tick the server sees the revive was not enough in play, so the respawn opens a
+	// short window: every few ticks, while the life the client reports is below max,
+	// the server sends the difference. The revive is read straight from the client's
+	// spawn packet, so it doesn't depend on the server's copy of `dead`.
 	public class RespawnHeal : ModSystem
 	{
+		private const int Window = 300;   // 5 s
+		private const int Every = 20;
+		private const int SpawnContextOffset = 13;   // byte id, 2x short pos, int timer, 2x short deaths
 		private readonly bool[] _wasDead = new bool[Main.maxPlayers];
+		private readonly int[] _left = new int[Main.maxPlayers];
+
+		public override bool HijackGetData(ref byte messageType, ref BinaryReader reader, int playerNumber)
+		{
+			if (!Main.dedServ || messageType != MessageID.PlayerSpawn || playerNumber < 0 || playerNumber >= Main.maxPlayers) return false;
+			Stream s = reader.BaseStream;
+			long start = s.Position;
+			try {
+				if (s.Length - start > SpawnContextOffset) {
+					s.Position = start + SpawnContextOffset;
+					if (reader.ReadByte() == (byte)PlayerSpawnContext.ReviveFromDeath) _left[playerNumber] = Window;
+				}
+			}
+			finally { s.Position = start; }
+			return false;
+		}
 
 		public override void PostUpdateEverything()
 		{
@@ -409,10 +433,12 @@ namespace StatusExport
 			for (int i = 0; i < Main.maxPlayers; i++)
 			{
 				Player p = Main.player[i];
-				bool dead = p.active && p.dead;
-				if (_wasDead[i] && p.active && !dead)
-					NetMessage.SendData(MessageID.PlayerHeal, i, -1, null, i, p.statLifeMax2);
-				_wasDead[i] = dead;
+				if (!p.active) { _wasDead[i] = false; _left[i] = 0; continue; }
+				if (_wasDead[i] && !p.dead) _left[i] = Window;
+				_wasDead[i] = p.dead;
+				if (_left[i] <= 0 || p.dead) continue;
+				if (_left[i]-- % Every == 0 && p.statLife < p.statLifeMax2)
+					NetMessage.SendData(MessageID.PlayerHeal, i, -1, null, i, p.statLifeMax2 - p.statLife);
 			}
 		}
 	}

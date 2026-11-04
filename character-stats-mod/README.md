@@ -128,7 +128,7 @@ PATH=/tmp/sdk:$PATH HOME=/tmp dotnet build -c Release
 
 ## Full life on respawn
 
-Players normally respawn at half life. `RespawnHeal` notices the respawn on the server and sends the heal packet, so everyone comes back at full life with nothing installed on the client.
+Players normally respawn at half life. `RespawnHeal` reads the revive from the client's spawn packet (and from the server's own `dead` flag) and, for 5 seconds, sends the heal packet for whatever is missing whenever the life the client reports is below max, so everyone comes back at full life with nothing installed on the client. A single heal sent at the moment of the revive was not enough in play.
 
 ## Reconnecting after a dropped connection
 
