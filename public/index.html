@@ -1085,7 +1085,8 @@
   // Progression order, names as the game shows them in pt-BR. Numbers are boss head
   // sprites (NPCID.Sets.BossHeadTextures); 'item:' uses an item sprite instead.
   var BOSSES=[
-    ['kingSlime','Geleia Rei',7],['eyeOfCthulhu','Olho de Cthulhu',0],['evilBoss',null,null],
+    ['kingSlime','Geleia Rei',7],['eyeOfCthulhu','Olho de Cthulhu',0],
+    ['eaterOfWorlds','Devorador de Mundos',2],['brainOfCthulhu','Cérebro de Cthulhu',23],
     ['queenBee','Abelha Rainha',14],['skeletron','Esqueletron',19],['deerclops','Cervoclope',39],
     ['wallOfFlesh','Parede de Carne',22],['queenSlime','Geleia Rainha',38],['theTwins','Os Gêmeos',20],
     ['destroyer','O Destruidor',25],['skeletronPrime','Esqueletron Alfa',18],['plantera','Plantera',11],
@@ -1093,11 +1094,17 @@
     ['cultist','Cultista Lunático',24],['moonLord','Senhor da Lua',8]
   ];
   var EVENTS=[
-    ['goblins','Invasão dos Goblins','item:361'],['frostLegion','Legião Congelada','item:602'],
-    ['pirates','Invasão Pirata',26],['martians','Invasão Marciana',9],
-    ['darkMage','Mago Sombrio',32],['ogre','Ogro',33],['betsy','Betsy',34],
+    ['bloodMoon','Lua de Sangue','item:4271'],['goblins','Invasão dos Goblins','item:361'],
+    ['oldOnesArmy','Exército do Antigo','item:3828'],['darkMage','Mago Sombrio',32],
+    ['ogre','Ogro',33],['betsy','Betsy',34],['frostLegion','Legião Congelada','item:602'],
+    ['pirates','Invasão Pirata','item:1315'],['flyingDutchman','Holandês Voador',26],
+    ['eclipse','Eclipse Solar','item:2767'],['pumpkinMoon','Lua de Abóbora','item:1844'],
     ['mourningWood','Árvore da Morte',10],['pumpking','Reibóbora',13],
-    ['everscream','Everscream',3],['santaNK1','Papai-Noel-NK1',17],['iceQueen','Rainha do Gelo',6]
+    ['frostMoon','Lua Congelada','item:1958'],['everscream','Everscream',3],
+    ['santaNK1','Papai-Noel-NK1',17],['iceQueen','Rainha do Gelo',6],
+    ['martians','Invasão Marciana','item:2797'],['martianSaucer','Disco Marciano',9],
+    ['solarPillar','Pilar Solar',27],['vortexPillar','Pilar do Vórtice',28],
+    ['nebulaPillar','Pilar da Nebulosa',29],['stardustPillar','Pilar de Poeira Estelar',30]
   ];
   function bossTile(b,done){
     var li=el('li','boss'+(done?' done':''));
@@ -1118,10 +1125,11 @@
     var key=JSON.stringify(p)+spritesOn.npc;
     if(key===bossKey)return;
     bossKey=key;
-    var list=BOSSES.map(function(b){
-      // the widened world has Corruption AND Crimson; the game keeps one flag for either boss
-      return b[0]==='evilBoss'?[b[0],'Devorador ou Cérebro',p.crimson?23:2]:b;
-    });
+    var list=BOSSES;
+    if(p.downed.eaterOfWorlds===undefined){
+      // older server mod: one flag for either evil boss, credit the world's own evil
+      p.downed[p.crimson?'brainOfCthulhu':'eaterOfWorlds']=!!p.downed.evilBoss;
+    }
     var done=list.filter(function(b){return p.downed[b[0]];}).length;
     var bl=$('bossList'),ev=$('eventList');bl.textContent='';ev.textContent='';
     list.forEach(function(b){bl.appendChild(bossTile(b,!!p.downed[b[0]]));});

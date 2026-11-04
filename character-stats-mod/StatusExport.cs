@@ -175,7 +175,9 @@ namespace StatusExport
 			{
 				["kingSlime"]      = NPC.downedSlimeKing,
 				["eyeOfCthulhu"]   = NPC.downedBoss1,
-				["evilBoss"]       = NPC.downedBoss2,   // Eater of Worlds / Brain of Cthulhu
+				["evilBoss"]       = NPC.downedBoss2,   // either one; kept for older site versions
+				["eaterOfWorlds"]  = EvilBosses.Eater,
+				["brainOfCthulhu"] = EvilBosses.Brain,
 				["skeletron"]      = NPC.downedBoss3,
 				["queenBee"]       = NPC.downedQueenBee,
 				["deerclops"]      = NPC.downedDeerclops,
@@ -202,6 +204,18 @@ namespace StatusExport
 				["darkMage"]       = DD2Event.DownedInvasionT1,
 				["ogre"]           = DD2Event.DownedInvasionT2,
 				["betsy"]          = DD2Event.DownedInvasionT3,
+				["oldOnesArmy"]    = DD2Event.DownedInvasionAnyDifficulty,
+				["solarPillar"]    = NPC.downedTowerSolar,
+				["vortexPillar"]   = NPC.downedTowerVortex,
+				["nebulaPillar"]   = NPC.downedTowerNebula,
+				["stardustPillar"] = NPC.downedTowerStardust,
+				// Vanilla never records these; Boss Checklist does, since it was installed.
+				["bloodMoon"]      = ModBosses.VanillaDowned("Terraria BloodMoon"),
+				["eclipse"]        = ModBosses.VanillaDowned("Terraria Eclipse"),
+				["pumpkinMoon"]    = ModBosses.VanillaDowned("Terraria PumpkinMoon"),
+				["frostMoon"]      = ModBosses.VanillaDowned("Terraria FrostMoon"),
+				["flyingDutchman"] = ModBosses.VanillaDowned("Terraria PirateShip"),
+				["martianSaucer"]  = ModBosses.VanillaDowned("Terraria MartianSaucer"),
 			};
 
 			// Coarse progression stage for the "level" proxy.

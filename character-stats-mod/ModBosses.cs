@@ -8,23 +8,40 @@ namespace StatusExport
 {
 	// Bosses, minibosses and events added by other mods (Fargo's Souls and friends),
 	// read from Boss Checklist's public API so any mod that registers there shows up
-	// on the site with no code here. Vanilla entries are skipped: the vanilla list
-	// is exported from NPC flags in StatusExport.cs.
+	// on the site with no code here. Vanilla entries are kept apart: most of the vanilla
+	// list comes from NPC flags in StatusExport.cs, and only what vanilla never tracks
+	// (moon events, Flying Dutchman, Martian Saucer) is read here, see VanillaDowned.
 	public static class ModBosses
 	{
 		private static List<Dictionary<string, object>> _entries;
+		private static Dictionary<string, Dictionary<string, object>> _all;
 		private static bool _failed;
+
+		private static bool Load()
+		{
+			if (_failed) return false;
+			if (_entries != null) return true;
+			if (!ModLoader.TryGetMod("BossChecklist", out Mod checklist)) { _failed = true; return false; }
+			var mod = ModContent.GetInstance<StatusExport>();
+			if (checklist.Call("GetBossInfoDictionary", mod, "2.0") is not Dictionary<string, Dictionary<string, object>> all) return false;
+			_all = all;
+			_entries = all.Values.Where(e => e.TryGetValue("modSource", out var src) && src as string != "Terraria").ToList();
+			return true;
+		}
+
+		// Boss Checklist's own flag for a vanilla entry, e.g. "Terraria BloodMoon".
+		// False when Boss Checklist is missing or has no such entry.
+		public static bool VanillaDowned(string key)
+		{
+			try { return Load() && _all.TryGetValue(key, out var e) && SafeDowned(e); }
+			catch { return false; }
+		}
 
 		public static List<object> Snapshot()
 		{
 			if (_failed) return null;
 			try {
-				if (_entries == null) {
-					if (!ModLoader.TryGetMod("BossChecklist", out Mod checklist)) { _failed = true; return null; }
-					var mod = ModContent.GetInstance<StatusExport>();
-					if (checklist.Call("GetBossInfoDictionary", mod, "2.0") is not Dictionary<string, Dictionary<string, object>> all) return null;
-					_entries = all.Values.Where(e => e.TryGetValue("modSource", out var src) && src as string != "Terraria").ToList();
-				}
+				if (!Load()) return null;
 				return _entries
 					.OrderBy(e => Convert.ToSingle(e["progression"]))
 					.Select(e => (object)new {

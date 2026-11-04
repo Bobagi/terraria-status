@@ -174,6 +174,12 @@ enabled across restarts and the guide's daily auto-update.
 - `modBosses`: every boss, miniboss and event other mods register with **Boss Checklist**, read through its
   `GetBossInfoDictionary` call (`ModBosses.cs`). Vanilla entries stay in `downed`. `head` names the map-head
   texture; the site only uses it to find an icon that `tools/build-modboss-icons.py` extracted.
+- `downed.eaterOfWorlds` / `downed.brainOfCthulhu`: vanilla keeps one flag for both (`NPC.downedBoss2`,
+  still exported as `evilBoss`), and so does Boss Checklist. `EvilBosses.cs` records each kill in the
+  world save; kills from before it existed come from the world's bestiary kill counts.
+- `downed.bloodMoon`, `eclipse`, `pumpkinMoon`, `frostMoon`, `flyingDutchman`, `martianSaucer`: vanilla
+  never records these, so they come from Boss Checklist's own flags (only since it was installed).
+  The four pillars and `oldOnesArmy` are vanilla flags.
 - `pingMs` per player: round trip from the kernel's TCP stats, the same number `/ping` shows.
 
 ### `/ping` in game
