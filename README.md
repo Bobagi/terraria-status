@@ -39,6 +39,65 @@ players ──HTTPS──▶ nginx ──▶ Node (127.0.0.1:3063) ──docker 
 - It runs **on the host, not in a container**, on purpose: it needs the `docker` CLI, and
   mounting `docker.sock` into an internet-facing container would be a much bigger risk.
 
+## Run it locally (development / testing)
+
+No `npm install` needed: the app has zero dependencies. The whole frontend is a
+single file, `public/index.html` (HTML + CSS + JS); `server.js` serves it and
+`/api/status`. Requires Node.js ≥ 18 (≥ 20 only for the map build).
+
+### Option 1: GitHub Codespaces
+
+1. On the repo page: **Code → Codespaces → Create codespace on main**.
+2. In the Codespace terminal:
+   ```bash
+   npm start
+   ```
+3. Codespaces detects port **3063** and shows an **Open in Browser** prompt. If it
+   doesn't, open the **Ports** tab, add `3063` and click the globe icon.
+
+### Option 2: your own machine
+
+```bash
+git clone https://github.com/Bobagi/terraria-status.git
+cd terraria-status
+npm start            # http://127.0.0.1:3063
+```
+
+Port already taken? Pick another one:
+
+```bash
+STATUS_PORT=3099 npm start                  # Linux / macOS / Git Bash
+```
+
+```powershell
+$env:STATUS_PORT=3099; npm start            # Windows PowerShell
+```
+
+### What to expect without the game server
+
+Outside the VPS there is no `tmodloader` container (and usually no Docker), so the
+page loads with the server **offline**: no players, no CPU/RAM, no character modal
+data. That is expected and the app does not crash: it just leaves those fields empty.
+Layout, colors, texts, the mods list and the rest of the page can be worked on normally.
+
+Also missing on a fresh clone (both are gitignored):
+
+- **`/mapa/`**: generate it with `bash tools/terramap/build.sh` (see [World map](#world-map-mapa)).
+- **Item/buff sprites** (`public/sprites/`): the page falls back to glyphs; see [Item icons](#item-icons).
+
+### Editing workflow
+
+- **`public/index.html`**: save and refresh the browser (F5). Files are read from disk
+  on every request, so no restart is needed.
+- **`server.js`** (e.g. the `MODS` array, defaults, endpoints): stop with `Ctrl+C` and
+  run `npm start` again.
+
+### Automated tests
+
+```bash
+npm test             # node --test: console parser, world snapshot, world extras
+```
+
 ## Requirements
 
 - The tModLoader server from the guide (JACOBSMILE image; the `inject` helper + tmux
