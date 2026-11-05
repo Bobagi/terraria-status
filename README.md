@@ -41,9 +41,9 @@ players ──HTTPS──▶ nginx ──▶ Node (127.0.0.1:3063) ──docker 
 
 ## Run it locally (development / testing)
 
-No `npm install` needed: the app has zero dependencies. The whole frontend is a
-single file, `public/index.html` (HTML + CSS + JS); `server.js` serves it and
-`/api/status`. Requires Node.js ≥ 18 (≥ 20 only for the map build).
+No `npm install` needed: the app has zero dependencies. The frontend lives in
+`public/`: `index.html` (markup), `css/style.css`, `js/app.js` and `icons/icons.svg`
+(see [Icons](#icons)); `server.js` serves it and `/api/status`. Requires Node.js ≥ 18 (≥ 20 only for the map build).
 
 ### Option 1: GitHub Codespaces
 
@@ -87,10 +87,23 @@ Also missing on a fresh clone (both are gitignored):
 
 ### Editing workflow
 
-- **`public/index.html`**: save and refresh the browser (F5). Files are read from disk
-  on every request, so no restart is needed.
+- **`public/`** (`index.html`, `css/style.css`, `js/app.js`): save and refresh the
+  browser (F5). Files are read from disk on every request, so no restart is needed.
 - **`server.js`** (e.g. the `MODS` array, defaults, endpoints): stop with `Ctrl+C` and
   run `npm start` again.
+
+### Icons
+
+UI icons come from [Lucide](https://lucide.dev) (ISC license), bundled as one SVG
+sprite, `public/icons/icons.svg`, with only the icons the page uses, so there is no
+icon CDN at runtime. Use one with
+`<svg class="ic" aria-hidden="true"><use href="/icons/icons.svg#play"/></svg>` in the
+HTML or `icon('play')` in `js/app.js`; it takes the surrounding text colour and size.
+To add an icon, append its Lucide name to `ICONS` in `tools/build-icons.mjs` and run:
+
+```bash
+cd tools && npm install && node build-icons.mjs
+```
 
 ### Automated tests
 

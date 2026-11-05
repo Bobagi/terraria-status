@@ -40,9 +40,9 @@ jogadores ──HTTPS──▶ nginx ──▶ Node (127.0.0.1:3063) ──docke
 
 ## Rodar localmente (desenvolvimento / teste)
 
-Não precisa de `npm install`: o app não tem nenhuma dependência. O front inteiro é um
-arquivo só, `public/index.html` (HTML + CSS + JS); o `server.js` serve ele e o
-`/api/status`. Precisa de Node.js ≥ 18 (≥ 20 só pro build do mapa).
+Não precisa de `npm install`: o app não tem nenhuma dependência. O front fica em
+`public/`: `index.html` (marcação), `css/style.css`, `js/app.js` e `icons/icons.svg`
+(veja [Ícones](#ícones)); o `server.js` serve tudo e o `/api/status`. Precisa de Node.js ≥ 18 (≥ 20 só pro build do mapa).
 
 ### Opção 1: GitHub Codespaces
 
@@ -86,10 +86,23 @@ Também ficam faltando num clone novo (os dois estão no `.gitignore`):
 
 ### Fluxo de edição
 
-- **`public/index.html`**: salve e dê F5 no navegador. Os arquivos são lidos do disco a
-  cada request, então não precisa reiniciar.
+- **`public/`** (`index.html`, `css/style.css`, `js/app.js`): salve e dê F5 no
+  navegador. Os arquivos são lidos do disco a cada request, então não precisa reiniciar.
 - **`server.js`** (ex.: o array `MODS`, padrões, endpoints): pare com `Ctrl+C` e rode
   `npm start` de novo.
+
+### Ícones
+
+Os ícones vêm do [Lucide](https://lucide.dev) (licença ISC), empacotados num sprite SVG
+só, `public/icons/icons.svg`, com apenas os ícones que a página usa: nada de CDN de
+ícone em produção. Use com
+`<svg class="ic" aria-hidden="true"><use href="/icons/icons.svg#play"/></svg>` no HTML
+ou `icon('play')` no `js/app.js`; o ícone herda a cor e o tamanho do texto em volta.
+Pra adicionar um, coloque o nome do Lucide em `ICONS` no `tools/build-icons.mjs` e rode:
+
+```bash
+cd tools && npm install && node build-icons.mjs
+```
 
 ### Testes automatizados
 

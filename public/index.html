@@ -16,415 +16,7 @@
 <meta name="twitter:card" content="summary">
 <meta name="robots" content="index,follow">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 29C6 22 2 16 2 10a7 7 0 0 1 14-2 7 7 0 0 1 14 2c0 6-4 12-14 19Z' fill='%23ff3b57'/%3E%3C/svg%3E">
-<style>
-  /* Fredoka, free (SIL OFL) rounded display font, evokes Terraria's UI type.
-     Self-hosted (offline, no external CDN); variable weight axis in one file. */
-  @font-face{
-    font-family:'Fredoka';
-    src:url('/fonts/fredoka.woff2') format('woff2');
-    font-weight:300 700;
-    font-style:normal;
-    font-display:swap;
-  }
-  :root{
-    /* Terraria rarity + biome palette */
-    --white:#f4f2ff; --gray:#9a94b8;
-    --blue:#8aa9ff; --green:#74e48a; --lime:#b6e84a; --yellow:#ffd23f;
-    --orange:#ff9e42; --red:#ff5470; --purple:#c58bff; --cyan:#4fd6ff;
-    /* surfaces */
-    --sky-top:#0a0b1f; --sky-mid:#141235; --sky-low:#241a44;
-    --panel:#2a2650; --panel-2:#211d43; --panel-edge:#6b64b8; --panel-dark:#12102a;
-    --ink:#eceaffe0; --ink-dim:#b3adda;
-    --shadow:2px 2px 0 rgba(0,0,0,.85);
-    --seg:linear-gradient(90deg,rgba(0,0,0,.16) 0 2px,transparent 2px 8px);
-  }
-  *{box-sizing:border-box}
-  /* the [hidden] attr must beat author display rules (flex/grid), without this,
-     .modal-backdrop{display:flex} keeps an invisible overlay over the whole page,
-     swallowing every click, and .stale-warn shows even when hidden. */
-  [hidden]{display:none!important}
-  html,body{margin:0}
-  body{
-    font-family:'Fredoka',"Trebuchet MS","Segoe UI",system-ui,sans-serif;
-    color:var(--ink);
-    background:var(--sky-top);
-    min-height:100vh;
-    line-height:1.5;
-    -webkit-font-smoothing:antialiased;
-    overflow-x:hidden;
-  }
-  /* ---- dusk sky + stars ---- */
-  .sky{position:fixed;inset:0;z-index:-3;
-    background:linear-gradient(180deg,var(--sky-top) 0%,var(--sky-mid) 45%,var(--sky-low) 100%);}
-  .stars{position:fixed;inset:0;z-index:-2;
-    background-image:
-      radial-gradient(1.4px 1.4px at 12% 18%,#fff,transparent),
-      radial-gradient(1.4px 1.4px at 78% 12%,#dfe6ff,transparent),
-      radial-gradient(1px 1px at 33% 42%,#fff,transparent),
-      radial-gradient(1px 1px at 62% 28%,#fff,transparent),
-      radial-gradient(1.6px 1.6px at 88% 52%,#fff,transparent),
-      radial-gradient(1px 1px at 8% 62%,#cfe0ff,transparent),
-      radial-gradient(1.2px 1.2px at 50% 10%,#fff,transparent),
-      radial-gradient(1px 1px at 24% 8%,#fff,transparent);
-    opacity:.8; animation:twinkle 6s ease-in-out infinite;}
-  .moon{position:fixed;top:6vh;right:9vw;z-index:-2;width:80px;height:80px;border-radius:50%;overflow:hidden;
-    background:radial-gradient(circle at 38% 35%,#fff8e6,#ffe9a8 55%,#d8bd63 100%);
-    box-shadow:0 0 50px 12px rgba(255,231,158,.28), inset -10px -8px 0 rgba(0,0,0,.06);}
-  /* moon-phase shadow, JS shifts it to carve a crescent; hidden (full moon) by default */
-  .moon .ph{position:absolute;inset:-2px;border-radius:50%;background:#0a0b22;opacity:0;pointer-events:none}
-  /* sun, hidden until the live in-game clock says it's daytime */
-  .sun{position:fixed;top:6vh;left:12vw;z-index:-2;width:88px;height:88px;border-radius:50%;opacity:0;
-    background:radial-gradient(circle at 40% 38%,#fff7d6,#ffd45a 55%,#ff9d3c 100%);
-    box-shadow:0 0 60px 20px rgba(255,190,80,.32), inset -8px -8px 0 rgba(180,90,0,.12);}
-  .hills{position:fixed;left:0;right:0;bottom:0;z-index:-2;width:100%;height:26vh;display:block}
-  /* keeps light hero/footer text readable when the sky brightens by day */
-  .skyscrim{position:fixed;left:0;right:0;top:0;height:60vh;z-index:-1;pointer-events:none;
-    background:radial-gradient(130% 80% at 50% -12%,rgba(6,7,20,.62),rgba(6,7,20,.28) 42%,transparent 68%)}
-  @keyframes twinkle{0%,100%{opacity:.55}50%{opacity:.95}}
-
-  .wrap{max-width:1080px;margin:0 auto;padding:26px 18px 60px}
-
-  /* ---- shared HUD text ---- */
-  .hud{font-weight:800;letter-spacing:.06em;text-transform:uppercase;text-shadow:var(--shadow)}
-  .eyebrow{font-size:.72rem;letter-spacing:.22em;color:var(--gray);text-transform:uppercase;text-shadow:var(--shadow)}
-
-  /* ---- inventory panel ---- */
-  .panel{
-    position:relative;background:linear-gradient(180deg,var(--panel),var(--panel-2));
-    border:2px solid var(--panel-edge);border-radius:8px;padding:18px 18px 20px;
-    box-shadow:inset 2px 2px 0 rgba(255,255,255,.10), inset -3px -3px 0 rgba(0,0,0,.34), 0 10px 26px rgba(0,0,0,.42);
-  }
-  .panel-title{display:flex;align-items:center;gap:9px;margin:0 0 14px;font-size:.92rem}
-  .panel-title .sec-ic{width:1.15em;height:1.15em;flex:none;display:inline-grid;place-items:center;
-    filter:drop-shadow(0 0 5px currentColor) drop-shadow(1px 1px 0 rgba(0,0,0,.7))}
-  .panel-title .sec-ic svg{width:100%;height:100%;fill:currentColor;display:block}
-
-  /* ---- hero sign ---- */
-  .hero{margin:12px 0 26px;text-align:center}
-  .brandline{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap}
-  /* Terraria-logo treatment: solid white glyphs with a full dark outline + hard
-     drop, the old gradient-to-lilac fill blended into the night sky. */
-  .brand{font-size:clamp(2.4rem,8vw,4.4rem);font-weight:800;letter-spacing:.02em;margin:0;color:#fff;
-    text-shadow:
-      -3px -3px 0 #0d0a20, 3px -3px 0 #0d0a20, -3px 3px 0 #0d0a20, 3px 3px 0 #0d0a20,
-      0 -3px 0 #0d0a20, 0 3px 0 #0d0a20, -3px 0 0 #0d0a20, 3px 0 0 #0d0a20,
-      5px 6px 0 rgba(0,0,0,.9)}
-  .sub{color:var(--ink-dim);margin:.5rem 0 0;text-shadow:var(--shadow)}
-  .status-gem{display:inline-flex;align-items:center;gap:9px;padding:8px 15px;border-radius:999px;
-    font-size:.86rem;border:2px solid;position:relative;top:-2px}
-  .status-gem .gem{width:12px;height:12px;border-radius:50%;box-shadow:0 0 0 3px rgba(255,255,255,.06)}
-  /* solid backgrounds: the pill can sit over the (bright) moon on small screens */
-  .is-online{color:var(--green);border-color:#2f6b41;background:#132b1c}
-  .is-online .gem{background:var(--green);box-shadow:0 0 12px var(--green);animation:beat 1.8s ease-in-out infinite}
-  .is-offline{color:var(--red);border-color:#7a2b3a;background:#2e1219}
-  .is-offline .gem{background:var(--red);box-shadow:0 0 12px var(--red)}
-  .is-loading{color:var(--gray);border-color:#3a3560;background:rgba(40,36,72,.4)}
-  .is-loading .gem{background:var(--gray)}
-  @keyframes beat{0%,100%{transform:scale(1)}12%{transform:scale(1.35)}24%{transform:scale(1)}}
-
-  /* ---- join sign ---- */
-  .join{max-width:560px;margin:22px auto 0}
-  .sign{display:flex;align-items:center;gap:12px;justify-content:center;flex-wrap:wrap;
-    background:linear-gradient(180deg,#5a3d24,#3f2a19);border:3px solid #7a5432;border-radius:10px;
-    padding:14px 16px;box-shadow:inset 0 2px 0 rgba(255,255,255,.12),inset 0 -4px 0 rgba(0,0,0,.35),0 8px 20px rgba(0,0,0,.4)}
-  .sign .lbl{font-size:.66rem;letter-spacing:.16em;color:#e9c9a0;text-transform:uppercase;text-shadow:var(--shadow)}
-  .addr{font-family:ui-monospace,"Cascadia Code",Consolas,monospace;font-size:clamp(1.05rem,3.4vw,1.5rem);
-    font-weight:700;color:#fff;text-shadow:var(--shadow);letter-spacing:.02em}
-  .copy{cursor:pointer;border:2px solid #9c6c3f;background:#6a4526;color:#ffe9cf;border-radius:7px;
-    padding:7px 12px;font:inherit;font-size:.8rem;font-weight:700;text-shadow:var(--shadow);
-    transition:transform .08s,background .15s}
-  .copy:hover{background:#7d5330;transform:translateY(-1px)}
-  .copy:active{transform:translateY(1px)}
-  .alt-ip{text-align:center;margin-top:9px;font-size:.8rem;color:var(--ink-dim);text-shadow:var(--shadow)}
-  .alt-ip code{font-family:ui-monospace,Consolas,monospace;color:var(--cyan);background:var(--panel-dark);
-    border:1px solid #423c74;border-radius:5px;padding:1px 7px}
-  .launch-row{display:flex;flex-direction:column;align-items:center;gap:6px;margin-top:14px}
-  .steam-btn{display:inline-flex;align-items:center;gap:8px;text-decoration:none;cursor:pointer;
-    font-weight:800;font-size:.95rem;color:#eaf6ff;text-shadow:var(--shadow);
-    background:linear-gradient(180deg,#2a475e,#1b2838);border:2px solid #66c0f4;border-radius:9px;
-    padding:11px 22px;box-shadow:inset 0 2px 0 rgba(255,255,255,.12),0 4px 0 rgba(0,0,0,.4);
-    transition:transform .08s,box-shadow .15s,border-color .15s}
-  .steam-btn:hover{transform:translateY(-1px);border-color:#8ed3ff;box-shadow:inset 0 2px 0 rgba(255,255,255,.16),0 5px 0 rgba(0,0,0,.4),0 0 18px rgba(102,192,244,.35)}
-  .steam-btn:active{transform:translateY(2px);box-shadow:inset 0 2px 0 rgba(255,255,255,.1),0 1px 0 rgba(0,0,0,.4)}
-  .map-btn{display:flex;justify-content:center;margin-top:14px;text-decoration:none;
-    font-weight:800;font-size:.95rem;color:#f2ffe9;text-shadow:var(--shadow);
-    background:linear-gradient(180deg,#3f7a3a,#2a5228);border:2px solid #8fd97f;border-radius:9px;
-    padding:11px 22px;box-shadow:inset 0 2px 0 rgba(255,255,255,.12),0 4px 0 rgba(0,0,0,.4);
-    transition:transform .08s,box-shadow .15s,border-color .15s}
-  .map-btn:hover{transform:translateY(-1px);border-color:#b6efa8}
-  .map-btn:active{transform:translateY(2px);box-shadow:inset 0 2px 0 rgba(255,255,255,.1),0 1px 0 rgba(0,0,0,.4)}
-  .launch-note{font-size:.72rem;color:var(--gray);text-shadow:var(--shadow)}
-  .pill-row{display:flex;gap:9px;justify-content:center;flex-wrap:wrap;margin-top:14px}
-  .pill{font-size:.76rem;font-weight:700;padding:5px 11px;border-radius:999px;border:1.5px solid;
-    text-shadow:var(--shadow);background:rgba(255,255,255,.03)}
-  .pill.exp{color:var(--orange);border-color:#7a5326}
-  .pill.size{color:var(--cyan);border-color:#276173}
-  .pill.slots{color:var(--green);border-color:#2f6b41}
-  .pill.lock{color:var(--yellow);border-color:#7a6a26}
-
-  /* ---- grid ---- */
-  .grid{display:grid;gap:18px;grid-template-columns:repeat(12,1fr);margin-top:22px}
-  .col-4{grid-column:span 4}.col-5{grid-column:span 5}.col-6{grid-column:span 6}
-  .col-7{grid-column:span 7}.col-8{grid-column:span 8}.col-12{grid-column:span 12}
-  @media(max-width:820px){.grid>*{grid-column:1/-1 !important}}
-
-  /* ---- hearts (player slots) ---- */
-  .hearts{display:flex;gap:7px;flex-wrap:wrap;margin:4px 0 14px}
-  .heart{width:26px;height:26px}
-  .heart svg{width:100%;height:100%;display:block;filter:drop-shadow(1px 1px 0 rgba(0,0,0,.7))}
-  .heart.on path{fill:url(#hg)}
-  .heart.off path{fill:#3a3560;opacity:.65}
-  .roster{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px}
-  .roster li{list-style:none}
-  .ritem{width:100%;display:flex;align-items:center;gap:9px;background:rgba(255,255,255,.05);
-    border:1px solid #3a3560;border-radius:6px;padding:8px 10px;font:inherit;font-weight:600;
-    color:inherit;text-align:left;cursor:pointer;text-shadow:var(--shadow);
-    transition:background .15s,border-color .15s,transform .08s}
-  .ritem:hover{background:rgba(255,255,255,.1);border-color:var(--panel-edge);transform:translateX(2px)}
-  .ritem .av{width:22px;height:22px;border-radius:4px;background:linear-gradient(135deg,var(--green),var(--cyan));
-    display:grid;place-items:center;font-size:.72rem;color:#0a1420;font-weight:800;flex:none}
-  .ritem .rn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-  .ritem .chev{margin-left:auto;color:var(--gray);font-size:.85rem;flex:none}
-  .roster-hint{font-size:.72rem;color:var(--gray);text-shadow:var(--shadow);margin-top:9px;text-align:center}
-  .empty{color:var(--ink-dim);text-align:center;padding:10px 6px}
-  .empty b{color:var(--white)}
-  .count-big{font-size:2.6rem;font-weight:800;line-height:1;text-shadow:var(--shadow)}
-  .count-big small{font-size:1rem;color:var(--gray);font-weight:700}
-
-  /* ---- vitals bars (Terraria HP-bar look) ---- */
-  .vital{margin:0 0 16px}
-  .vital:last-child{margin-bottom:0}
-  .vital .top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
-  .vital .name{font-size:.78rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-dim);text-shadow:var(--shadow)}
-  .vital .val{font-family:ui-monospace,Consolas,monospace;font-weight:700;text-shadow:var(--shadow)}
-  .bar{height:20px;border-radius:6px;background:var(--panel-dark);
-    border:2px solid #423c74;overflow:hidden;position:relative;
-    box-shadow:inset 2px 2px 0 rgba(0,0,0,.5)}
-  .bar .fill{height:100%;width:0;border-radius:4px 3px 3px 4px;transition:width .6s cubic-bezier(.4,1.3,.5,1);
-    background-image:var(--seg),linear-gradient(90deg,var(--c1),var(--c2))}
-  .fill.cpu{--c1:#3bd07a;--c2:#8be04a}
-  .fill.cpu.warn{--c1:#ffb648;--c2:#ff8a3c}
-  .fill.cpu.hot{--c1:#ff7a4d;--c2:#ff3b57}
-  .fill.ram{--c1:#5aa9ff;--c2:#c58bff}
-  .fill.tps{--c1:#3bd07a;--c2:#4fd6ff}
-  .fill.tps.warn{--c1:#ffb648;--c2:#ff8a3c}
-  .fill.tps.hot{--c1:#ff7a4d;--c2:#ff3b57}
-
-  /* ---- boss checklist ---- */
-  .boss-head{display:flex;align-items:center;gap:12px;margin-bottom:14px}
-  .boss-head .bar{flex:1;min-width:0}
-  .boss-count{font-family:ui-monospace,Consolas,monospace;font-weight:700;font-size:1.05rem;text-shadow:var(--shadow);flex:none}
-  .fill.boss{--c1:#ffb648;--c2:#ffd21a}
-  .boss-sub{margin:18px 0 10px;font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;color:var(--gray);text-shadow:var(--shadow)}
-  .bosses{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:10px}
-  .boss{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 6px 9px;
-    background:rgba(255,255,255,.03);border:1px solid #3a3560;border-radius:8px;text-align:center}
-  .boss img{width:48px;height:48px;object-fit:contain;image-rendering:pixelated;filter:grayscale(1) brightness(.5)}
-  .boss .bn{font-size:.72rem;font-weight:600;line-height:1.2;color:var(--gray);text-shadow:var(--shadow)}
-  .boss.done{background:rgba(255,210,26,.09);border-color:rgba(255,210,26,.5)}
-  .boss.done img{filter:none}
-  .boss.done .bn{color:#fff}
-  .boss .bs{position:absolute;top:5px;right:6px;font-size:.8rem;font-weight:700;color:var(--green);text-shadow:var(--shadow)}
-  .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-
-  /* ---- stat chips ---- */
-  .chips{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:2px}
-  .chip{background:rgba(255,255,255,.035);border:1px solid #3a3560;border-radius:8px;padding:11px 12px}
-  .chip .k{font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;color:var(--gray);text-shadow:var(--shadow)}
-  .chip .v{font-family:ui-monospace,Consolas,monospace;font-weight:700;font-size:1.05rem;margin-top:3px;text-shadow:var(--shadow)}
-
-  /* ---- mods ---- */
-  .mods{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
-  .mod{display:block;text-decoration:none;color:inherit;background:rgba(255,255,255,.035);
-    border:1px solid #3a3560;border-left:4px solid var(--mc);border-radius:8px;padding:12px 13px;
-    transition:transform .1s,border-color .15s,background .15s}
-  .mod:hover{transform:translateY(-2px);background:rgba(255,255,255,.07);border-color:var(--mc)}
-  .mod .mn{font-weight:800;color:var(--mc);text-shadow:var(--shadow);display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
-  .mod .mn>span:first-child{min-width:0;overflow-wrap:anywhere}
-  .mod .mn .ext{font-size:.7rem;color:var(--gray);font-weight:600;white-space:nowrap;flex:none}
-  .mod .md{font-size:.84rem;color:var(--ink-dim);margin-top:4px}
-  .mod .mid{font-family:ui-monospace,Consolas,monospace;font-size:.68rem;color:var(--gray);margin-top:7px}
-  .note{font-size:.82rem;color:var(--ink-dim);margin:0 0 14px;text-shadow:var(--shadow)}
-  .note b{color:var(--yellow)}
-
-  /* ---- join steps (real sequence) ---- */
-  .steps{list-style:none;counter-reset:s;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
-  .steps li{counter-increment:s;display:flex;gap:13px;align-items:flex-start}
-  .steps li::before{content:counter(s,decimal-leading-zero);flex:none;width:34px;height:34px;border-radius:7px;
-    display:grid;place-items:center;font-weight:800;font-family:ui-monospace,Consolas,monospace;
-    color:#0a1420;background:linear-gradient(135deg,var(--yellow),var(--orange));text-shadow:none;
-    box-shadow:0 3px 0 rgba(0,0,0,.35)}
-  .steps li .st{padding-top:4px}
-  .steps b{color:var(--white)}
-  .steps code{font-family:ui-monospace,Consolas,monospace;background:var(--panel-dark);
-    border:1px solid #423c74;border-radius:5px;padding:1px 6px;color:var(--cyan)}
-
-  /* ---- world facts ---- */
-  .facts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
-  .facts li{display:flex;justify-content:space-between;gap:12px;padding:9px 2px;border-bottom:1px dashed #3a3560}
-  .facts li:last-child{border-bottom:0}
-  .facts .fk{color:var(--ink-dim);text-shadow:var(--shadow)}
-  .facts .fv{font-weight:700;font-family:ui-monospace,Consolas,monospace;text-align:right;text-shadow:var(--shadow)}
-
-  /* ---- version freshness ---- */
-  .vbadge{font-family:'Fredoka',"Trebuchet MS",sans-serif;font-size:.66rem;font-weight:700;letter-spacing:.04em;
-    padding:2px 7px;border-radius:999px;border:1.5px solid;white-space:nowrap;vertical-align:middle}
-  .vbadge.ok{color:var(--green);border-color:#2f6b41;background:#132b1c}
-  .vbadge.stale{color:var(--orange);border-color:#7a5326;background:#2e2012}
-  .stale-warn{margin-top:14px;display:flex;gap:10px;align-items:flex-start;
-    background:#2a1c0e;border:2px solid var(--orange);border-radius:8px;padding:11px 13px;
-    font-size:.82rem;color:#ffe0bd;text-shadow:var(--shadow)}
-  .stale-warn b{color:var(--yellow)}
-  .stale-warn .ic{font-size:1.1rem;line-height:1;flex:none}
-
-  /* ---- player modal ---- */
-  .modal-backdrop{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;
-    padding:18px;background:rgba(6,7,20,.72);backdrop-filter:blur(3px);opacity:0;transition:opacity .18s}
-  .modal-backdrop.show{opacity:1}
-  .modal-card{position:relative;width:100%;max-width:440px;max-height:86vh;overflow:auto;
-    background:linear-gradient(180deg,var(--panel),var(--panel-2));border:2px solid var(--panel-edge);
-    border-radius:12px;padding:20px;transform:translateY(10px) scale(.98);transition:transform .18s;
-    box-shadow:inset 2px 2px 0 rgba(255,255,255,.10),inset -3px -3px 0 rgba(0,0,0,.34),0 20px 50px rgba(0,0,0,.6)}
-  .modal-backdrop.show .modal-card{transform:none}
-  .modal-x{position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:7px;cursor:pointer;
-    border:1px solid #3a3560;background:rgba(255,255,255,.05);color:var(--ink);font-size:1rem;font-weight:700;
-    display:grid;place-items:center}
-  .modal-x:hover{background:rgba(255,255,255,.12)}
-  .m-head{display:flex;align-items:center;gap:14px;margin-bottom:6px;padding-right:36px}
-  .m-av{width:52px;height:52px;border-radius:9px;background:linear-gradient(135deg,var(--green),var(--cyan));
-    display:grid;place-items:center;font-size:1.5rem;color:#0a1420;font-weight:800;flex:none;
-    box-shadow:0 3px 0 rgba(0,0,0,.35)}
-  .m-name{margin:0;font-size:1.35rem;font-weight:800;text-shadow:var(--shadow);word-break:break-word}
-  .m-sub{font-size:.8rem;color:var(--ink-dim);text-shadow:var(--shadow);margin-top:2px}
-  .m-sub .dotg{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);
-    box-shadow:0 0 7px var(--green);margin-right:6px;vertical-align:middle}
-  .m-body{margin-top:16px}
-  .m-vital{margin-bottom:12px}
-  .m-vital .top{display:flex;justify-content:space-between;margin-bottom:5px;font-size:.78rem;
-    text-transform:uppercase;letter-spacing:.08em;color:var(--ink-dim);text-shadow:var(--shadow)}
-  .m-vital .top b{font-family:ui-monospace,Consolas,monospace;color:var(--ink)}
-  .fill.life{--c1:#ff5a6e;--c2:#e01e42}
-  .fill.mana{--c1:#7aa8ff;--c2:#5b6dff}
-  .m-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
-  .m-stat{background:rgba(255,255,255,.04);border:1px solid #3a3560;border-radius:7px;padding:9px 11px}
-  .m-stat .k{font-size:.64rem;letter-spacing:.12em;text-transform:uppercase;color:var(--gray);text-shadow:var(--shadow)}
-  .m-stat .v{font-family:ui-monospace,Consolas,monospace;font-weight:700;margin-top:2px;text-shadow:var(--shadow)}
-  .m-sec-title{font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--gray);
-    text-shadow:var(--shadow);margin:16px 0 8px}
-  .m-list{display:flex;flex-wrap:wrap;gap:6px}
-  .m-tag{font-size:.78rem;padding:4px 9px;border-radius:6px;background:rgba(255,255,255,.05);
-    border:1px solid #3a3560;text-shadow:var(--shadow)}
-  .m-tag .pfx{color:var(--yellow)}
-  .m-note{background:rgba(255,255,255,.03);border:1px dashed #4b4a86;border-radius:8px;padding:13px;
-    font-size:.84rem;color:var(--ink-dim);text-shadow:var(--shadow)}
-  .m-note b{color:var(--white)}
-  .m-note a{color:var(--cyan)}
-
-  /* ---- player emblem avatars (a Terraria item sprite per name, framed like a slot) ---- */
-  .ritem .av{width:32px;height:32px;overflow:hidden;padding:0;border-radius:6px;image-rendering:pixelated;
-    background:radial-gradient(circle at 50% 38%,rgba(255,255,255,.08),rgba(0,0,0,.28));
-    border:1px solid rgba(255,255,255,.14);box-shadow:inset 1px 1px 0 rgba(255,255,255,.08)}
-  .ritem .av svg,.m-av svg{width:100%;height:100%;display:block}
-  .av-img{width:100%;height:100%;object-fit:contain;padding:4px;image-rendering:pixelated;display:block}
-  .ritem.is-dead .av{filter:grayscale(.75) brightness(.6)}
-  .ritem .rn .rdead{margin-left:6px;font-size:.85rem}
-  .m-av{overflow:hidden;padding:0;image-rendering:pixelated;
-    background:radial-gradient(circle at 50% 38%,rgba(255,255,255,.08),rgba(0,0,0,.3));
-    border:2px solid var(--panel-edge);box-shadow:inset 1px 1px 0 rgba(255,255,255,.08)}
-  .m-av .av-img{padding:7px}
-
-  /* status / progression pills under the modal name */
-  .m-badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-  .m-pill{font-size:.68rem;font-weight:700;letter-spacing:.03em;padding:3px 9px;border-radius:999px;
-    text-shadow:var(--shadow);border:1px solid rgba(255,255,255,.14);display:inline-flex;gap:5px;align-items:center}
-  .m-pill.alive{background:rgba(116,228,138,.14);color:var(--green)}
-  .m-pill.dead{background:rgba(255,84,112,.18);color:var(--red)}
-  .m-pill.prog{background:rgba(197,139,255,.14);color:var(--purple)}
-  .m-pill.biome{background:rgba(79,214,255,.12);color:var(--cyan)}
-
-  /* ---- item tiles (sprite → category glyph fallback, rarity frame) ---- */
-  .itile-grid{display:flex;flex-wrap:wrap;gap:7px}
-  .itile{position:relative;width:42px;height:42px;border-radius:8px;flex:none;display:grid;place-items:center;
-    background:radial-gradient(circle at 50% 36%,rgba(255,255,255,.07),rgba(0,0,0,.22));
-    border:2px solid var(--rc,#3a3560);
-    box-shadow:inset 1px 1px 0 rgba(255,255,255,.08),inset -2px -2px 0 rgba(0,0,0,.32)}
-  .itile img{width:30px;height:30px;object-fit:contain;image-rendering:pixelated;display:block}
-  .itile .glyph{width:22px;height:22px;display:block;color:var(--rc,#cfc9f0)}
-  .itile .glyph svg{width:100%;height:100%;display:block;fill:currentColor}
-  .itile .stk{position:absolute;right:-3px;bottom:-4px;font-family:ui-monospace,Consolas,monospace;
-    font-size:.6rem;font-weight:700;color:#fff;background:#171430;border:1px solid #4b4a86;border-radius:5px;
-    padding:0 3px;line-height:1.4;text-shadow:1px 1px 0 #000}
-  .slot-wrap{display:flex;flex-direction:column;align-items:center;gap:3px}
-  .slot-wrap .lbl{font-size:.54rem;letter-spacing:.03em;color:var(--gray);text-transform:uppercase;text-shadow:var(--shadow)}
-
-  /* held item */
-  .m-held{display:flex;align-items:center;gap:11px;margin-top:6px;padding:9px 11px;border-radius:8px;
-    background:rgba(255,255,255,.04);border:1px solid #3a3560}
-  .m-held .hn{min-width:0}
-  .m-held .hn b{display:block;font-size:.92rem;word-break:break-word}
-  .m-held .hn small{color:var(--gray);font-size:.66rem;text-transform:uppercase;letter-spacing:.09em}
-
-  /* buff chips */
-  .buff{display:inline-flex;align-items:center;gap:6px;font-size:.74rem;padding:3px 9px 3px 5px;border-radius:999px;
-    background:rgba(255,255,255,.05);border:1px solid #3a3560;text-shadow:var(--shadow)}
-  .buff .bi{width:18px;height:18px;display:grid;place-items:center;flex:none;image-rendering:pixelated}
-  .buff .bi img{width:18px;height:18px;image-rendering:pixelated}
-  .buff .bi svg{width:13px;height:13px;fill:var(--yellow)}
-
-  /* coin wealth */
-  .coins{display:inline-flex;gap:8px;align-items:center;font-family:ui-monospace,Consolas,monospace;font-weight:700}
-  .coins .zero{color:var(--gray);font-weight:600}
-  .coin{display:inline-flex;align-items:center;gap:3px}
-  .coin i{width:11px;height:11px;border-radius:50%;box-shadow:inset -1px -1px 0 rgba(0,0,0,.4),0 0 4px rgba(0,0,0,.3)}
-  .coin.p i{background:radial-gradient(circle at 35% 30%,#fff,#dcdbe8)}
-  .coin.g i{background:radial-gradient(circle at 35% 30%,#ffe98a,#ffcb2e)}
-  .coin.s i{background:radial-gradient(circle at 35% 30%,#eef1f7,#c3c8d3)}
-  .coin.c i{background:radial-gradient(circle at 35% 30%,#f0b47a,#c9743a)}
-
-  /* live world extras */
-  .wlive{margin-top:12px;padding-top:11px;border-top:1px dashed #4b4a86;display:flex;flex-wrap:wrap;gap:8px}
-  .wlive .wp{font-size:.72rem;font-weight:700;padding:5px 10px;border-radius:8px;text-shadow:var(--shadow);
-    background:rgba(255,255,255,.05);border:1px solid #3a3560;display:inline-flex;gap:6px;align-items:center}
-  .wlive .wp.prog{color:var(--purple);border-color:rgba(197,139,255,.35)}
-  .wlive .wp.warn{background:rgba(255,84,112,.16);color:var(--red);border-color:rgba(255,84,112,.45)}
-
-  footer{margin-top:32px;text-align:center;color:var(--gray);font-size:.78rem;text-shadow:var(--shadow)}
-  footer .live{display:inline-flex;align-items:center;gap:7px}
-  footer .live .beacon{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:beat 1.8s ease-in-out infinite}
-  footer a{color:var(--ink-dim)}
-  .disclaimer{margin-top:10px;opacity:.7;max-width:640px;margin-inline:auto}
-
-  .ritem .rping{flex:none;margin-left:auto;font-family:ui-monospace,Consolas,monospace;font-size:.72rem;font-weight:700;
-    padding:2px 7px;border-radius:6px;border:1px solid #3a3560;color:var(--green);background:rgba(0,0,0,.25)}
-  .ritem .rping.mid{color:var(--yellow)}
-  .ritem .rping.bad{color:var(--red)}
-  .ritem .rping+.chev{margin-left:6px}
-  .news{list-style:none;margin:0;padding:0;display:grid;gap:12px}
-  .news li{display:grid;grid-template-columns:3.4rem minmax(0,1fr);gap:10px;align-items:baseline}
-  .news time{font-family:ui-monospace,Consolas,monospace;font-size:.8rem;font-weight:700;color:var(--yellow);text-shadow:var(--shadow)}
-  .news a{color:var(--cyan)}
-  .cmds{margin:0;display:grid;grid-template-columns:auto minmax(0,1fr);gap:9px 14px;align-items:baseline}
-  .cmds dt{margin:0}
-  .cmds dd{margin:0;color:var(--ink-dim)}
-  .cmds code,.news code{font-family:ui-monospace,Consolas,monospace;color:var(--cyan);background:rgba(0,0,0,.28);
-    padding:1px 6px;border-radius:5px;border:1px solid #3a3560}
-  .cmd-note{margin:14px 0 0}
-  .toast.err{color:var(--red)}
-  .boss img.modhead{object-fit:contain;image-rendering:pixelated}
-  .boss .bk{font-size:.58rem;letter-spacing:.08em;text-transform:uppercase;color:var(--gray)}
-  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);opacity:0;
-    background:#211d43;border:2px solid var(--green);color:var(--green);padding:10px 18px;border-radius:8px;
-    font-weight:700;text-shadow:var(--shadow);transition:.25s;pointer-events:none;z-index:9}
-  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-
-  /* keyboard focus, visible on every interactive target */
-  a:focus-visible,button:focus-visible{outline:3px solid var(--yellow);outline-offset:2px;border-radius:6px}
-  .copy:focus-visible{outline-offset:3px}
-
-  @media (prefers-reduced-motion:reduce){
-    *{animation:none !important;transition:none !important}
-  }
-</style>
+<link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
 <div class="sky" id="skyEl"></div>
@@ -454,21 +46,23 @@
     <p class="sub">Mundo modado pra jogar com os amigos. Esta página mostra tudo ao vivo.</p>
 
     <div class="join">
-      <div class="sign">
-        <span class="lbl">IP do servidor</span>
-        <span class="addr" id="addr">46.202.144.75</span>
-        <button class="copy" id="copyBtn" type="button">Copiar</button>
+      <div class="sign" id="sign">
+        <div class="addr-box">
+          <span class="lbl">IP do servidor</span>
+          <span class="addr" id="addr">46.202.144.75</span>
+        </div>
+        <button class="copy" id="copyBtn" type="button" aria-label="Copiar IP"><svg class="ic" aria-hidden="true"><use href="/icons/icons.svg#copy"/></svg><span class="copy-txt">Copiar</span></button>
       </div>
       <div class="alt-ip">porta: <code id="portAlt">7777</code> (pedida na tela seguinte). Use o IP, não bobagi.space.</div>
       <div class="launch-row">
-        <a class="steam-btn" id="steamBtn" href="steam://run/1281930">▶ Abrir tModLoader</a>
+        <a class="steam-btn" id="steamBtn" href="steam://run/1281930"><svg class="ic" aria-hidden="true"><use href="/icons/icons.svg#play"/></svg>Abrir tModLoader</a>
         <span class="launch-note">abre o jogo pela Steam, depois Multiplayer → Join via IP</span>
       </div>
       <div class="pill-row">
-        <span class="pill exp">⚔ Expert</span>
-        <span class="pill size">🗺 <span id="pillSize">Mundo</span></span>
-        <span class="pill slots">👥 <span id="pillSlots">8</span> vagas</span>
-        <span class="pill lock">🔒 Com senha</span>
+        <span class="pill exp"><svg class="ic" aria-hidden="true"><use href="/icons/icons.svg#swords"/></svg>Expert</span>
+        <span class="pill size"><svg class="ic" aria-hidden="true"><use href="/icons/icons.svg#mountain"/></svg><span id="pillSize">Mundo</span></span>
+        <span class="pill slots"><svg class="ic" aria-hidden="true"><use href="/icons/icons.svg#users"/></svg><span id="pillSlots">8</span> vagas</span>
+        <span class="pill lock"><svg class="ic" aria-hidden="true"><use href="/icons/icons.svg#lock"/></svg>Com senha</span>
       </div>
     </div>
   </section>
@@ -477,7 +71,7 @@
     <!-- how to join (top) -->
     <div class="col-7">
       <section class="panel">
-        <h2 class="panel-title hud"><span class="sec-ic" style="color:var(--yellow)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h9v2H6v14h7v2H4z"/><path d="M13 7l5 5-5 5v-3H9v-4h4z"/></svg></span>Como entrar</h2>
+        <h2 class="panel-title hud"><span class="sec-ic" style="color:var(--yellow)"><svg class="ic" aria-hidden="true"><use href="/icons/icons.svg#log-in"/></svg></span>Como entrar</h2>
         <ol class="steps">
           <li><span class="st">Instale o <b>tModLoader</b> (grátis na Steam, dono do Terraria), ou clique em <b>Abrir tModLoader</b> acima.</span></li>
           <li><span class="st">Abra <b>Workshop → Mod Browser</b> e assine os mods logo abaixo (ou deixe o servidor baixar no join).</span></li>
@@ -490,7 +84,7 @@
     <!-- world facts (top) -->
     <div class="col-5">
       <section class="panel">
-        <h2 class="panel-title hud"><span class="sec-ic" style="color:var(--orange)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a6 6 0 0 1 2 11.7V22h-4v-8.3A6 6 0 0 1 12 2z"/></svg></span>O mundo</h2>
+        <h2 class="panel-title hud"><span class="sec-ic" style="color:var(--orange)"><svg class="ic" aria-hidden="true"><use href="/icons/icons.svg#earth"/></svg></span>O mundo</h2>
         <ul class="facts">
           <li><span class="fk">Nome</span><span class="fv" id="worldName">Hyperborea</span></li>
           <li><span class="fk">Tamanho</span><span class="fv" id="worldSize">-</span></li>
@@ -500,9 +94,9 @@
           <li><span class="fk">tModLoader</span><span class="fv" style="font-size:.8rem"><span id="ver">-</span> <span id="verBadge" class="vbadge" hidden></span></span></li>
         </ul>
         <div class="wlive" id="wlive" hidden></div>
-        <a class="map-btn" href="/mapa/">🗺 Ver mapa do mundo</a>
+        <a class="map-btn" href="/mapa/"><svg class="ic" aria-hidden="true"><use href="/icons/icons.svg#map"/></svg>Ver mapa do mundo</a>
         <div class="stale-warn" id="staleWarn" hidden>
-          <span class="ic">⚠</span>
+          <svg class="ic warn-ic" aria-hidden="true"><use href="/icons/icons.svg#triangle-alert"/></svg>
           <span><b>Servidor desatualizado.</b> A versão <span id="latestVer" style="font-family:ui-monospace,Consolas,monospace"></span> do tModLoader já saiu; enquanto o servidor não atualiza, quem estiver na versão nova da Steam não consegue entrar. Ele se atualiza sozinho no próximo ciclo (diário).</span>
         </div>
       </section>
@@ -511,21 +105,21 @@
     <!-- players -->
     <div class="col-5">
       <section class="panel">
-        <h2 class="panel-title hud"><span class="sec-ic" style="color:var(--green)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21C5 16 3 12.5 3 8.9A4.9 4.9 0 0 1 12 6 4.9 4.9 0 0 1 21 8.9C21 12.5 19 16 12 21z"/></svg></span>Jogadores online</h2>
+        <h2 class="panel-title hud"><span class="sec-ic" style="color:var(--green)"><svg class="ic" aria-hidden="true"><use href="/icons/icons.svg#users"/></svg></span>Jogadores online</h2>
         <div style="display:flex;align-items:center;gap:16px;margin-bottom:6px">
           <div class="count-big"><span id="pCount">0</span><small>/<span id="pMax">8</span></small></div>
           <div class="hearts" id="hearts" aria-label="slots de jogadores"></div>
         </div>
         <ul class="roster" id="roster"></ul>
         <div class="empty" id="rosterEmpty" hidden>Ninguém explorando agora, <b>seja o primeiro</b> a entrar.</div>
-        <div class="roster-hint" id="rosterHint" hidden>👆 clique num jogador pra ver os detalhes</div>
+        <div class="roster-hint" id="rosterHint" hidden><svg class="ic" aria-hidden="true"><use href="/icons/icons.svg#mouse-pointer-click"/></svg>clique num jogador pra ver os detalhes</div>
       </section>
     </div>
 
     <!-- vitals -->
     <div class="col-7">
       <section class="panel">
-        <h2 class="panel-title hud"><span class="sec-ic" style="color:var(--cyan)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h3v7H4zM10.5 8h3v12h-3zM17 4h3v16h-3z"/></svg></span>Recursos do servidor</h2>
+        <h2 class="panel-title hud"><span class="sec-ic" style="color:var(--cyan)"><svg class="ic" aria-hidden="true"><use href="/icons/icons.svg#server"/></svg></span>Recursos do servidor</h2>
         <div class="vital">
           <div class="top"><span class="name">Processador (CPU)</span><span class="val" id="cpuVal">-</span></div>
           <div class="bar"><div class="fill cpu" id="cpuFill"></div></div>
@@ -550,7 +144,7 @@
     <!-- boss checklist -->
     <div class="col-12" id="bossPanel" hidden>
       <section class="panel">
-        <h2 class="panel-title hud"><span class="sec-ic" style="color:var(--red)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c5 0 8 3.4 8 8 0 3-1.5 5-3 6.2V20a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-3.8C5.5 15 4 13 4 10c0-4.6 3-8 8-8zM9 9a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg></span>Bosses derrotados</h2>
+        <h2 class="panel-title hud"><span class="sec-ic" style="color:var(--red)"><svg class="ic" aria-hidden="true"><use href="/icons/icons.svg#skull"/></svg></span>Bosses derrotados</h2>
         <div class="boss-head">
           <div class="bar" role="img" id="bossBar"><div class="fill boss" id="bossFill"></div></div>
           <span class="boss-count" id="bossCount">-</span>
@@ -572,7 +166,7 @@
     <!-- mods -->
     <div class="col-12">
       <section class="panel">
-        <h2 class="panel-title hud"><span class="sec-ic" style="color:var(--purple)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l7 7-7 13-7-13z"/></svg></span>Mods do servidor</h2>
+        <h2 class="panel-title hud"><span class="sec-ic" style="color:var(--purple)"><svg class="ic" aria-hidden="true"><use href="/icons/icons.svg#puzzle"/></svg></span>Mods do servidor</h2>
         <p class="note">Pra entrar você precisa dos <b>mesmos <span id="modCount">7</span> mods</b>. O servidor baixa sozinho no join, mas assinar na Workshop deixa mais rápido. O Fargo's Souls traz itens fortes e bosses novos, e o <b>Eternity Mode</b> continua desligado.</p>
         <div class="mods" id="mods"></div>
       </section>
@@ -581,7 +175,7 @@
     <!-- what changed lately -->
     <div class="col-7">
       <section class="panel">
-        <h2 class="panel-title hud"><span class="sec-ic" style="color:var(--yellow)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.6 6.3L21 9l-5 4.4L17.5 20 12 16.6 6.5 20 8 13.4 3 9l6.4-.7z"/></svg></span>Novidades</h2>
+        <h2 class="panel-title hud"><span class="sec-ic" style="color:var(--yellow)"><svg class="ic" aria-hidden="true"><use href="/icons/icons.svg#megaphone"/></svg></span>Novidades</h2>
         <ul class="news">
           <li><time datetime="2026-11-03">03/11</time><span><b>O mundo dobrou de largura.</b> Passando o antigo oceano da direita tem um mundo novo inteiro: Carmesim, outra Selva com Templo, Neve, Deserto com Pirâmide, outra Dungeon e Shimmer. Do lado novo estão os minérios que faltavam (Chumbo, Platina, Paládio, Mithril e Titânio), então agora tem os 16.</span></li>
           <li><time datetime="2026-11-03">03/11</time><span><b>Mais de um Pylon por bioma</b>, com o mod No Pylon Restrictions. As outras regras continuam: NPCs por perto, bioma certo e alcance.</span></li>
@@ -594,7 +188,7 @@
     <!-- chat commands -->
     <div class="col-5">
       <section class="panel">
-        <h2 class="panel-title hud"><span class="sec-ic" style="color:var(--cyan)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v12H8l-4 4z"/></svg></span>Comandos do chat</h2>
+        <h2 class="panel-title hud"><span class="sec-ic" style="color:var(--cyan)"><svg class="ic" aria-hidden="true"><use href="/icons/icons.svg#message-square"/></svg></span>Comandos do chat</h2>
         <dl class="cmds">
           <dt><code>/ping</code></dt><dd>Seu ping até o servidor (só você vê).</dd>
           <dt><code>/playing</code></dt><dd>Quem está online agora.</dd>
@@ -615,7 +209,7 @@
 <!-- player detail modal -->
 <div class="modal-backdrop" id="modal" hidden>
   <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="mTitle">
-    <button class="modal-x" id="modalX" type="button" aria-label="Fechar">✕</button>
+    <button class="modal-x" id="modalX" type="button" aria-label="Fechar"><svg class="ic" aria-hidden="true"><use href="/icons/icons.svg#x"/></svg></button>
     <div class="m-head">
       <span class="m-av" id="mAv">?</span>
       <div style="min-width:0">
@@ -629,565 +223,6 @@
 
 <div class="toast" id="toast">Endereço copiado!</div>
 
-<script>
-(function(){
-  var HEARTS_SVG = '<svg viewBox="0 0 32 30"><path d="M16 29C6 22 2 16 2 10a7 7 0 0 1 14-2 7 7 0 0 1 14 2c0 6-4 12-14 19Z"/></svg>';
-
-  function $(id){return document.getElementById(id);}
-  function fmtBytes(n){
-    if(n==null||isNaN(n))return '-';
-    if(n<1024)return n+' B';
-    var u=['KB','MB','GB','TB'],i=-1;do{n/=1024;i++;}while(n>=1024&&i<u.length-1);
-    return (n>=100?Math.round(n):n.toFixed(1))+' '+u[i];
-  }
-  function fmtUptime(s){
-    if(s==null)return '-';
-    var d=Math.floor(s/86400);s%=86400;var h=Math.floor(s/3600);s%=3600;var m=Math.floor(s/60);
-    var p=[];if(d)p.push(d+'d');if(h)p.push(h+'h');p.push(m+'m');return p.join(' ');
-  }
-  function fmtAgo(iso){
-    if(!iso)return 'agora';
-    var s=Math.max(0,Math.round((Date.now()-new Date(iso).getTime())/1000));
-    if(s<5)return 'agora';if(s<60)return 'há '+s+'s';var m=Math.floor(s/60);return 'há '+m+'min';
-  }
-
-  function renderHearts(count,max){
-    var box=$('hearts');if(box.childElementCount!==max){box.innerHTML='';for(var i=0;i<max;i++){var d=document.createElement('div');d.className='heart off';d.innerHTML=HEARTS_SVG;box.appendChild(d);}}
-    for(var j=0;j<box.childElementCount;j++){box.children[j].className='heart '+(j<count?'on':'off');}
-  }
-
-  var lastUpdated=null, currentPlayers=[], openPlayerName=null, lastFocus=null;
-
-  function fmtDur(s){
-    if(s==null)return '';
-    if(s<60)return '~'+s+'s';var m=Math.floor(s/60);
-    if(m<60)return '~'+m+'min';var h=Math.floor(m/60);m=m%60;
-    return '~'+h+'h'+(m?(' '+m+'min'):'');
-  }
-
-  // ---- player modal (all text via textContent, names are user-controlled) ----
-  function el(tag,cls,txt){var e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e;}
-  function barEl(label,cls,cur,max){
-    var w=el('div','m-vital'),top=el('div','top');
-    top.appendChild(el('span',null,label));
-    top.appendChild(el('b',null,(cur!=null?cur:'?')+' / '+max));
-    var bar=el('div','bar'),fill=el('div','fill '+cls);
-    fill.style.width=Math.max(0,Math.min(100,(cur/max)*100))+'%';
-    bar.appendChild(fill);w.appendChild(top);w.appendChild(bar);return w;
-  }
-  // ---- deterministic per-name portrait (pure vector, no user text embedded) ----
-  function hashCode(s){var h=2166136261>>>0;s=(s||'?')+'';for(var i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
-  function portraitSVG(name){
-    var h=hashCode(name);
-    var skins=['#f2c9a0','#e8b48a','#c98a5e','#a86c46','#7a4a2b','#f6d5b8'];
-    var hairs=['#3a2a1a','#6b3d1f','#141414','#c9962e','#8a1f1f','#5a5a6a','#d9d2c0','#2a5a8a'];
-    var shirts=['#c0392b','#2980b9','#27ae60','#8e44ad','#d68910','#16a085','#c0447a','#455a94'];
-    var bgs=['#1b2a4a','#2a1b4a','#123a2a','#3a2a12','#0f2f3a','#3a1230'];
-    var skin=skins[h%skins.length],hair=hairs[(h>>3)%hairs.length],shirt=shirts[(h>>7)%shirts.length],bg=bgs[(h>>11)%bgs.length];
-    var st=(h>>13)%3;
-    var hairTop = st===0
-      ? '<rect x="9" y="4" width="14" height="6" fill="'+hair+'"/><rect x="8" y="6" width="2" height="6" fill="'+hair+'"/><rect x="22" y="6" width="2" height="6" fill="'+hair+'"/>'
-      : st===1
-      ? '<rect x="9" y="3" width="14" height="6" fill="'+hair+'"/><rect x="13" y="1" width="6" height="3" fill="'+hair+'"/><rect x="21" y="6" width="3" height="5" fill="'+hair+'"/>'
-      : '<rect x="8" y="4" width="16" height="6" fill="'+hair+'"/><rect x="7" y="8" width="3" height="13" fill="'+hair+'"/><rect x="22" y="8" width="3" height="13" fill="'+hair+'"/>';
-    return '<svg viewBox="0 0 32 32" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">'
-      +'<rect width="32" height="32" fill="'+bg+'"/>'
-      +'<rect x="9" y="22" width="14" height="10" fill="'+shirt+'"/>'
-      +'<rect x="13" y="20" width="6" height="3" fill="'+skin+'"/>'
-      +'<rect x="10" y="8" width="12" height="12" rx="1" fill="'+skin+'"/>'
-      +hairTop
-      +'<rect x="12" y="12" width="2" height="3" fill="#20304a"/><rect x="18" y="12" width="2" height="3" fill="#20304a"/>'
-      +'</svg>';
-  }
-  // Per-player emblem avatar, deterministic by name. Preference order:
-  //  1) a Terraria town-NPC/critter map-head (a real face, best),
-  //  2) a curated colorful item sprite,
-  //  3) the drawn portrait (if no sprite set is installed).
-  // Curated town-NPC head ids that read well as faces (skip the "?" default,
-  // hard-to-read grey critters and the item-like tail end).
-  var NPC_AVATARS=[1,2,3,4,5,7,8,10,11,12,13,14,15,17,19,20,22,23,24,25,45,48,51,52,53,57,58,59,60,62,63,69,71,72,77];
-  var AVATARS=[65,757,674,46,3065,494,112,1928,1244,180,181,182,184,999,1309,3018,2880,1256,1326,950,4952,267,3541,1178];
-  function avatarEl(name){
-    var h=hashCode(name),src=null;
-    if(spritesOn.npc)      src='/sprites/npc/'+NPC_AVATARS[h%NPC_AVATARS.length]+'.png';
-    else if(spritesOn.item)src='/sprites/item/'+AVATARS[h%AVATARS.length]+'.png';
-    if(src){
-      var img=document.createElement('img');img.className='av-img';img.alt='';img.loading='lazy';img.src=src;
-      img.onerror=function(){var s=document.createElement('span');s.innerHTML=portraitSVG(name);
-        if(img.parentNode)img.parentNode.replaceChild(s.firstChild,img);};
-      return img;
-    }
-    var sp=document.createElement('span');sp.style.cssText='display:block;width:100%;height:100%';
-    sp.innerHTML=portraitSVG(name);return sp;
-  }
-
-  // ---- item rarity + category glyphs ----
-  function rarityColor(r){
-    var m={'-1':'#8a8a8a','0':'#e9e6ff','1':'#8aa9ff','2':'#96ff96','3':'#ffb46a','4':'#ff8a8a',
-      '5':'#ff8ad6','6':'#d2a0ff','7':'#b6e84a','8':'#ffd23f','9':'#4fd6ff','10':'#ff3b57','11':'#c58bff'};
-    if(r==null)return '#6b64b8';
-    if(m[r])return m[r];
-    return r>11?'#ff9e42':'#8a8a8a';
-  }
-  var SPARK='<path d="M12 2l2 8 8 2-8 2-2 8-2-8-8-2 8-2z"/>';
-  var GLYPHS={
-    melee:'<path d="M20 4l-9 9-1 3 3-1 9-9z"/><path d="M8 15l-4 4 1 1 4-4z"/>',
-    ranged:'<path d="M6 3a13 13 0 0 1 0 18" fill="none" stroke="currentColor" stroke-width="2"/><line x1="6" y1="3" x2="6" y2="21" stroke="currentColor" stroke-width="1.5"/><line x1="6" y1="12" x2="20" y2="12" stroke="currentColor" stroke-width="1.5"/>',
-    magic:SPARK,
-    summon:'<circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3"/>',
-    weapon:'<path d="M20 4l-9 9-1 3 3-1 9-9z"/><path d="M8 15l-4 4 1 1 4-4z"/>',
-    tool:'<path d="M4 20l7-7" stroke="currentColor" stroke-width="2.4" fill="none"/><path d="M6 5c5-1 9 1 12 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>',
-    armor:'<path d="M12 2l8 3v6c0 6-4 9-8 11-4-2-8-5-8-11V5z"/>',
-    accessory:'<circle cx="12" cy="14" r="6" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M9 8l3-4 3 4z"/>',
-    ammo:'<path d="M4 20L20 4" stroke="currentColor" stroke-width="2" fill="none"/><path d="M20 4h-6M20 4v6" stroke="currentColor" stroke-width="2" fill="none"/>',
-    potion:'<path d="M10 3h4v4l3 8a3 3 0 0 1-3 4H10a3 3 0 0 1-3-4l3-8z"/><rect x="9" y="2" width="6" height="2"/>',
-    block:'<path d="M12 3l8 4v10l-8 4-8-4V7z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3v18M4 7l8 4 8-4" fill="none" stroke="currentColor" stroke-width="1.4"/>',
-    coin:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.5" fill="#171430"/>',
-    material:'<path d="M12 3l6 6-6 12-6-12z"/>'
-  };
-  function glyphEl(kind){var s=el('span','glyph');s.innerHTML='<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'+(GLYPHS[kind]||GLYPHS.material)+'</svg>';return s;}
-  var KIND_LABEL={melee:'Arma corpo-a-corpo',ranged:'Arma à distância',magic:'Arma mágica',summon:'Invocação',weapon:'Arma',tool:'Ferramenta',armor:'Armadura',accessory:'Acessório',ammo:'Munição',potion:'Poção',block:'Bloco',coin:'Moeda',material:'Material'};
-  var spritesOn={item:false,buff:false,npc:false};
-
-  function itemTile(it){
-    var w=el('span','itile');
-    w.style.setProperty('--rc',rarityColor(it.rarity));
-    var full=(it.prefix?it.prefix+' ':'')+(it.name||'?');
-    w.title=full;w.setAttribute('aria-label',full); // .title/.aria-label are attributes → name stays inert
-    if(spritesOn.item&&it.id!=null&&it.id>=0){
-      var img=document.createElement('img');img.alt='';img.loading='lazy';var t=0;
-      var srcs=['/sprites/item/'+it.id+'.png','/sprites/item/Item_'+it.id+'.png']; // accept both naming schemes
-      img.src=srcs[0];
-      img.onerror=function(){t++;if(t<srcs.length){img.src=srcs[t];}else if(img.parentNode){img.parentNode.replaceChild(glyphEl(it.kind),img);}};
-      w.appendChild(img);
-    }else{w.appendChild(glyphEl(it.kind));}
-    if(it.stack>1)w.appendChild(el('span','stk','×'+it.stack));
-    return w;
-  }
-  function tileGrid(items){var g=el('div','itile-grid');items.forEach(function(it){g.appendChild(itemTile(it));});return g;}
-  function buffChip(b){
-    var c=el('span','buff'),bi=el('span','bi');
-    if(spritesOn.buff&&b.id!=null&&b.id>=0){
-      var img=document.createElement('img');img.alt='';img.loading='lazy';var t=0;
-      var srcs=['/sprites/buff/'+b.id+'.png','/sprites/buff/Buff_'+b.id+'.png'];
-      img.src=srcs[0];
-      img.onerror=function(){t++;if(t<srcs.length){img.src=srcs[t];}else{bi.innerHTML='<svg viewBox="0 0 24 24">'+SPARK+'</svg>';}};
-      bi.appendChild(img);
-    }else{bi.innerHTML='<svg viewBox="0 0 24 24">'+SPARK+'</svg>';}
-    c.appendChild(bi);c.appendChild(document.createTextNode(b.name||''));
-    return c;
-  }
-  function coinsEl(w){
-    var box=el('span','coins');
-    if(!w||(!w.plat&&!w.gold&&!w.silver&&!w.copper)){box.appendChild(el('span','zero','sem moedas'));return box;}
-    [['p',w.plat],['g',w.gold],['s',w.silver],['c',w.copper]].forEach(function(c){
-      if(!c[1])return;var e=el('span','coin '+c[0]);e.appendChild(el('i'));e.appendChild(document.createTextNode(c[1]));box.appendChild(e);
-    });
-    return box;
-  }
-  function pill(cls,txt){var p=el('span','m-pill '+cls);p.textContent=txt;return p;}
-  function wpill(cls,txt){var s=el('span','wp'+(cls?' '+cls:''));s.textContent=txt;return s;}
-
-  function renderStats(st){
-    var f=document.createDocumentFragment();
-    if(st.lifeMax)f.appendChild(barEl('Vida','life',st.dead?0:st.life,st.lifeMax));
-    if(st.manaMax)f.appendChild(barEl('Mana','mana',st.mana,st.manaMax));
-    var grid=el('div','m-grid');
-    function stat(k,v){if(v==null||v===''||typeof v==='object')return;var c=el('div','m-stat');c.appendChild(el('div','k',k));c.appendChild(el('div','v',v));grid.appendChild(c);}
-    stat('Defesa',st.defense);stat('Modo',st.difficulty);
-    if(st.deaths!=null)stat('Mortes',st.deaths);
-    stat('Itens no inventário',st.inventoryCount);
-    if(grid.childElementCount)f.appendChild(grid);
-    if(st.wealth){f.appendChild(el('div','m-sec-title','Riqueza'));var wb=el('div');wb.appendChild(coinsEl(st.wealth));f.appendChild(wb);}
-    if(st.held){
-      f.appendChild(el('div','m-sec-title','Na mão'));
-      var h=el('div','m-held');h.appendChild(itemTile(st.held));
-      var hn=el('div','hn');hn.appendChild(el('b',null,(st.held.prefix?st.held.prefix+' ':'')+st.held.name));
-      hn.appendChild(el('small',null,KIND_LABEL[st.held.kind]||'Item'));h.appendChild(hn);f.appendChild(h);
-    }
-    function section(title,arr){if(arr&&arr.length){f.appendChild(el('div','m-sec-title',title));f.appendChild(tileGrid(arr));}}
-    section('Equipado',st.equips);section('Vaidade',st.vanity);section('Utilitários',st.misc);
-    section('Munição',st.ammo);section('Inventário',st.inventory);
-    if(st.buffs&&st.buffs.length){
-      f.appendChild(el('div','m-sec-title','Buffs ativos'));var bl=el('div','m-list');
-      st.buffs.forEach(function(b){bl.appendChild(buffChip(typeof b==='string'?{name:b,id:-1}:b));});f.appendChild(bl);
-    }
-    return f;
-  }
-  function fillModal(p){
-    var mav=$('mAv');mav.textContent='';mav.appendChild(avatarEl(p.name));
-    $('mTitle').textContent=p.name;
-    var sess=$('mSession');sess.textContent='';
-    sess.appendChild(el('span','dotg'));
-    sess.appendChild(document.createTextNode('online '+(p.onlineForSec!=null?('há '+fmtDur(p.onlineForSec)):'agora')
-      +(p.stats&&typeof p.stats.pingMs==='number'?(' · ping '+p.stats.pingMs+' ms'):'')));
-    var body=$('mBody');body.textContent='';
-    var st=p.stats;
-    if(st){
-      var badges=el('div','m-badges');
-      if(st.dead)badges.appendChild(pill('dead','💀 Morto'+(st.respawnSec?(' · volta em '+st.respawnSec+'s'):'')));
-      else badges.appendChild(pill('alive','● Vivo'));
-      if(st.biome)badges.appendChild(pill('biome','📍 '+st.biome));
-      body.appendChild(badges);
-      body.appendChild(renderStats(st));
-    }else{
-      var note=el('div','m-note');
-      note.innerHTML='<b>Vida, mana, defesa, equipamentos e inventário</b> aparecem aqui quando o '+
-        'mod de stats está ativo no servidor. Ele é <b>server-side</b>, você <b>não</b> precisa dele pra entrar. '+
-        'Sem ele, o servidor só informa <b>quem</b> está online e há quanto tempo. Detalhes no '+
-        '<a href="https://github.com/Bobagi/terraria-status#character-stats-optional" target="_blank" rel="noopener">repositório</a>.';
-      body.appendChild(note);
-    }
-  }
-  function openModal(name){
-    var p=currentPlayers.filter(function(x){return x.name===name;})[0];
-    if(!p)return;
-    openPlayerName=name;lastFocus=document.activeElement;fillModal(p);
-    var m=$('modal');m.hidden=false;requestAnimationFrame(function(){m.classList.add('show');});
-    $('modalX').focus();document.body.style.overflow='hidden';
-  }
-  function closeModal(){
-    openPlayerName=null;var m=$('modal');m.classList.remove('show');document.body.style.overflow='';
-    setTimeout(function(){m.hidden=true;},180);
-    if(lastFocus&&lastFocus.focus)lastFocus.focus();
-  }
-  $('modalX').addEventListener('click',closeModal);
-  $('modal').addEventListener('click',function(e){if(e.target===$('modal'))closeModal();});
-  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&openPlayerName)closeModal();});
-  $('modal').addEventListener('keydown',function(e){
-    if(e.key!=='Tab')return;
-    var foc=$('modal').querySelectorAll('button,a[href]');if(!foc.length)return;
-    var first=foc[0],last=foc[foc.length-1];
-    if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
-    else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
-  });
-
-  // ---- day/night sky driven by the in-game clock (from the optional mod) ----
-  var reducedMotion=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;
-  // [hour, topRGB, midRGB, lowRGB] keyframes across a Terraria day; JS lerps between them.
-  var SKY_ANCHORS=[
-    [0,   [6,7,26],   [12,12,36],  [30,22,64]],
-    [4.5, [16,16,44], [40,30,66],  [95,60,86]],
-    [6.3, [70,66,120],[210,120,92],[250,182,120]],
-    [8.5, [42,92,168],[96,150,206],[158,196,228]],
-    [13,  [46,110,190],[100,162,214],[176,208,234]],
-    [17,  [52,96,164],[128,146,198],[212,192,192]],
-    [18.6,[42,44,104],[220,112,90],[250,158,110]],
-    [20,  [12,14,42],  [24,20,60],  [58,40,90]],
-    [24,  [6,7,26],   [12,12,36],  [30,22,64]]
-  ];
-  function lerp(a,b,t){return Math.round(a+(b-a)*t);}
-  function rgb(c){return 'rgb('+c[0]+','+c[1]+','+c[2]+')';}
-  function skyColors(h){
-    for(var i=0;i<SKY_ANCHORS.length-1;i++){
-      var a=SKY_ANCHORS[i],b=SKY_ANCHORS[i+1];
-      if(h>=a[0]&&h<=b[0]){var t=(h-a[0])/(b[0]-a[0]);
-        return [[lerp(a[1][0],b[1][0],t),lerp(a[1][1],b[1][1],t),lerp(a[1][2],b[1][2],t)],
-                [lerp(a[2][0],b[2][0],t),lerp(a[2][1],b[2][1],t),lerp(a[2][2],b[2][2],t)],
-                [lerp(a[3][0],b[3][0],t),lerp(a[3][1],b[3][1],t),lerp(a[3][2],b[3][2],t)]];}
-    }
-    return [SKY_ANCHORS[0][1],SKY_ANCHORS[0][2],SKY_ANCHORS[0][3]];
-  }
-  var sky={hour:null,phase:0,last:0};
-  var skySeeded=false; // seed the day/night clock ONCE from the server, then run purely client-side
-  // Current time from the client-side sky clock (so the world-panel pill stays in
-  // sync with the moving sun/moon instead of re-reading the server each poll).
-  function skyClock(){
-    if(sky.hour==null)return null;
-    var h=(sky.hour+24)%24,hh=Math.floor(h),mm=Math.floor((h-hh)*60);
-    return {day:h>=4.5&&h<19.5,text:(hh<10?'0':'')+hh+':'+(mm<10?'0':'')+mm};
-  }
-  function renderSky(){
-    var h=sky.hour;if(h==null)return;h=(h+24)%24;
-    var isDay=h>=4.5&&h<19.5;
-    var frac=isDay?(h-4.5)/15:(((h<4.5?h+24:h)-19.5)/9);
-    frac=Math.max(0,Math.min(1,frac));
-    var x=5+frac*90, y=78-Math.sin(frac*Math.PI)*64;   // arc across the top of the viewport
-    var sun=$('sun'),moon=$('moon');
-    var body=isDay?sun:moon, other=isDay?moon:sun;
-    body.style.left=x+'vw';body.style.top=y+'vh';body.style.right='auto';body.style.opacity='1';
-    other.style.opacity='0';
-    var ph=$('moonPh'),p=(((sky.phase||0)%8)+8)%8;     // 0 = full, 4 = new
-    if(p===0){ph.style.opacity='0';}
-    else{var illum=(p<4)?(4-p)/4:(p-4)/4,side=(p<4)?1:-1;
-      ph.style.opacity='1';ph.style.transform='translateX('+(illum*110*side)+'%)';}
-    var g=skyColors(h);
-    ph.style.background=rgb(g[0]);
-    $('skyEl').style.background='linear-gradient(180deg,'+rgb(g[0])+' 0%,'+rgb(g[1])+' 45%,'+rgb(g[2])+' 100%)';
-    $('starsEl').style.opacity=isDay?'0':(h<5.2||h>19.8?'0.85':'0.5');
-    // the ground silhouette greens up in daylight, back to dark purple at night
-    var dl=isDay?(0.28+0.72*Math.sin(frac*Math.PI)):0;
-    $('hillFar').setAttribute('fill',rgb([lerp(21,55,dl),lerp(15,112,dl),lerp(44,62,dl)]));
-    $('hillNear').setAttribute('fill',rgb([lerp(12,30,dl),lerp(8,80,dl),lerp(32,44,dl)]));
-  }
-  function setSkyFromLive(live){
-    if(!live||live.timeText==null){   // no live clock (server empty/frozen) → default dusk art
-      if(sky.hour===null)return;
-      sky.hour=null;
-      $('skyEl').style.background='';$('starsEl').style.opacity='';
-      var mn=$('moon');mn.style.left='';mn.style.top='';mn.style.right='';mn.style.opacity='';
-      $('sun').style.opacity='0';$('moonPh').style.opacity='0';
-      return;
-    }
-    var m=/^(\d{1,2}):(\d{2})$/.exec(live.timeText);
-    sky.hour=m?(parseInt(m[1],10)+parseInt(m[2],10)/60):(live.dayTime?12:0);
-    sky.phase=live.moonPhase||0;sky.last=performance.now();
-    renderSky();
-  }
-  // Advance the clock locally so the sun/moon glide (seeded once, not re-synced).
-  // Terraria's day is LONGER than its night: 15 in-game hours in 900 s real (15 min,
-  // dayLength 54000 ticks) vs 9 hours in 540 s real (9 min, nightLength 32400), so the
-  // per-second rate switches at dawn/dusk (4:30) and dusk (19:30).
-  function skyTick(ts){
-    if(sky.hour!=null&&!reducedMotion){
-      var dt=(ts-sky.last)/1000;sky.last=ts;
-      var rate=(sky.hour>=4.5&&sky.hour<19.5)?(15/900):(9/540);
-      sky.hour=(sky.hour+rate*dt)%24;renderSky();
-    }else{sky.last=ts;}
-    requestAnimationFrame(skyTick);
-  }
-  requestAnimationFrame(skyTick);
-
-  function apply(d){
-    lastUpdated=d.updatedAt;
-    // Detect the sprite set BEFORE rendering avatars/tiles (else the first paint
-    // falls back to glyphs/portraits for a frame).
-    if(d.server&&d.server.sprites){spritesOn.item=!!d.server.sprites.item;spritesOn.buff=!!d.server.sprites.buff;spritesOn.npc=!!d.server.sprites.npc;}
-    // Seed the sky clock only on the FIRST poll that carries a live in-game time,
-    // then let the client-side rAF tween run standalone. We deliberately do NOT
-    // re-sync every 5 s, the server's minute-resolution time would snap the sun/
-    // moon and cause the stutter. (One request feeds everything; nothing extra is
-    // polled for day/night.)
-    if(!skySeeded&&d.world&&d.world.live&&d.world.live.timeText){setSkyFromLive(d.world.live);skySeeded=true;}
-    // status gem
-    var gem=$('gem'),gt=$('gemText');
-    if(d.online){gem.className='status-gem is-online';gt.textContent='ONLINE';}
-    else{gem.className='status-gem is-offline';gt.textContent='OFFLINE';}
-
-    // players
-    var pc=d.players.count||0,pm=d.players.max||8;
-    $('pCount').textContent=pc;$('pMax').textContent=pm;$('pillSlots').textContent=pm;
-    renderHearts(pc,pm);
-    var list=(d.players&&d.players.list)||[];
-    currentPlayers=list;
-    var roster=$('roster'),empty=$('rosterEmpty'),hint=$('rosterHint');
-    roster.innerHTML='';
-    if(list.length){
-      empty.hidden=true;hint.hidden=false;
-      list.forEach(function(p){
-        var li=document.createElement('li');
-        var dead=p.stats&&p.stats.dead;
-        var btn=el('button','ritem'+(dead?' is-dead':''));btn.type='button';
-        var av=el('span','av');av.appendChild(avatarEl(p.name));btn.appendChild(av);
-        var rn=el('span','rn');rn.appendChild(document.createTextNode(p.name));
-        if(dead)rn.appendChild(el('span','rdead','💀'));
-        btn.appendChild(rn);
-        var ping=p.stats&&p.stats.pingMs;
-        if(typeof ping==='number'){
-          var rp=el('span','rping'+(ping>=150?' bad':ping>=80?' mid':''),ping+' ms');
-          rp.title='ping até o servidor';btn.appendChild(rp);
-        }
-        btn.appendChild(el('span','chev','›'));
-        btn.addEventListener('click',function(){openModal(p.name);});
-        li.appendChild(btn);roster.appendChild(li);
-      });
-    }else{empty.hidden=false;hint.hidden=true;}
-    // keep an open modal in sync with fresh data (or close it if the player left)
-    if(openPlayerName){
-      var still=list.filter(function(p){return p.name===openPlayerName;})[0];
-      if(still)fillModal(still);else closeModal();
-    }
-
-    // vitals
-    var cpu=d.resources.cpuPerc,ram=d.resources.memPerc;
-    if(cpu!=null){$('cpuVal').textContent=cpu.toFixed(1)+'%';
-      var f=$('cpuFill');f.style.width=Math.min(100,cpu)+'%';
-      f.className='fill cpu'+(cpu>=80?' hot':cpu>=45?' warn':'');}
-    if(ram!=null){
-      var used=fmtBytes(d.resources.memUsedBytes),lim=fmtBytes(d.resources.memLimitBytes);
-      $('ramVal').textContent=used+' / '+lim+'  ('+ram.toFixed(0)+'%)';
-      $('ramFill').style.width=Math.min(100,ram)+'%';
-    }
-    $('uptime').textContent=fmtUptime(d.container.uptimeSec);
-    $('restarts').textContent=(d.container.restarts==null?'-':d.container.restarts);
-    var net='-';
-    if(d.resources.netRxText)net=d.resources.netRxText+' / '+d.resources.netTxText;
-    $('net').textContent=net;
-    $('disk').textContent=fmtBytes(d.resources.diskWorldBytes);
-    // world simulation speed, only measured while someone is playing
-    var tps=d.world&&d.world.live&&d.world.live.tps,te=$('tps');
-    var tf=$('tpsFill');
-    if(typeof tps==='number'){te.textContent=Math.round(tps)+' / 60 por s';
-      tf.style.width=Math.min(100,tps/60*100)+'%';tf.className='fill tps'+(tps<50?' hot':tps<58?' warn':'');}
-    else{te.textContent=d.players&&d.players.count?'medindo…':'parado';te.title=d.players&&d.players.count?'':'o servidor só simula o mundo com alguém jogando';tf.style.width='0';tf.className='fill tps';}
-    var tiles=d.world&&d.world.tiles;
-    if(tiles){$('worldSize').textContent=tiles.width+' x '+tiles.height+sizeName(tiles);
-      $('pillSize').textContent='Mundo '+tiles.width+' x '+tiles.height;}
-
-    // world + version freshness
-    if(d.world&&d.world.name)$('worldName').textContent=d.world.name;
-    $('lastSave').textContent=d.world.lastSaveAt?fmtAgo(d.world.lastSaveAt):'-';
-    var s=d.server||{};
-    $('ver').textContent=s.tmodloaderVersion?('v'+s.tmodloaderVersion):'-';
-    var badge=$('verBadge'),warn=$('staleWarn');
-    if(s.upToDate===true){badge.hidden=false;badge.className='vbadge ok';badge.textContent='✓ atualizado';warn.hidden=true;}
-    else if(s.upToDate===false){badge.hidden=false;badge.className='vbadge stale';badge.textContent='⚠ desatualizada';
-      warn.hidden=false;$('latestVer').textContent='v'+(s.latestVersion||'?');}
-    else{badge.hidden=true;warn.hidden=true;}
-
-    // live world extras (day/night, progression, events) from the optional mod
-    var wl=$('wlive');wl.textContent='';
-    var lw=d.world&&d.world.live;
-    if(lw){
-      wl.hidden=false;
-      wl.appendChild(wpill('prog','⚔ '+(lw.progression||'-')));
-      // day/night pill uses the seeded client clock (falls back to live only pre-seed)
-      var sc=skyClock(),dn=sc||{day:lw.dayTime,text:lw.timeText};
-      wl.appendChild(wpill('',(dn.day?'☀ Dia':'🌙 Noite')+(dn.text?(' · '+dn.text):'')));
-      if(lw.bloodMoon)wl.appendChild(wpill('warn','🩸 Lua de Sangue'));
-      if(lw.eclipse)wl.appendChild(wpill('warn','🌑 Eclipse Solar'));
-      if(lw.pumpkinMoon)wl.appendChild(wpill('warn','🎃 Lua Abóbora'));
-      if(lw.snowMoon)wl.appendChild(wpill('warn','❄ Lua Gelada'));
-    }else{wl.hidden=true;}
-    renderBosses(d.world&&d.world.progress);
-
-    // mods (once)
-    var mbox=$('mods');
-    if(!mbox.childElementCount&&d.mods){
-      d.mods.forEach(function(m){
-        var a=document.createElement('a');
-        a.className='mod';a.href='https://steamcommunity.com/sharedfiles/filedetails/?id='+m.id;
-        a.target='_blank';a.rel='noopener';a.style.setProperty('--mc','var(--'+m.rarity+')');
-        a.innerHTML='<div class="mn"><span></span><span class="ext">Workshop ↗</span></div>'+
-          '<div class="md"></div><div class="mid">ID '+m.id+'</div>';
-        a.querySelector('.mn span').textContent=m.name;
-        a.querySelector('.md').textContent=m.desc;
-        mbox.appendChild(a);
-      });
-    }
-    // address + steam launch
-    if(s.ip){
-      // Join via IP: the domain sits behind Cloudflare (HTTP only), so players need the raw IP
-      $('addr').textContent=s.ip;
-      $('stepAddr').textContent=s.ip;
-      if(s.port)$('portAlt').textContent=s.port;
-      if(s.steamAppId)$('steamBtn').href='steam://run/'+s.steamAppId;
-    }
-    if(d.mods)$('modCount').textContent=d.mods.length;
-  }
-
-  // Vanilla presets by name; a widened small world (8400 x 1200) gets its own label.
-  function sizeName(t){
-    var k=t.width+'x'+t.height;
-    var n={'4200x1200':'pequeno','6400x1800':'médio','8400x2400':'grande','8400x1200':'pequeno dobrado'}[k];
-    return n?' ('+n+')':'';
-  }
-  // Progression order, names as the game shows them in pt-BR. Numbers are boss head
-  // sprites (NPCID.Sets.BossHeadTextures); 'item:' uses an item sprite instead.
-  var BOSSES=[
-    ['kingSlime','Geleia Rei',7],['eyeOfCthulhu','Olho de Cthulhu',0],
-    ['eaterOfWorlds','Devorador de Mundos',2],['brainOfCthulhu','Cérebro de Cthulhu',23],
-    ['queenBee','Abelha Rainha',14],['skeletron','Esqueletron',19],['deerclops','Cervoclope',39],
-    ['wallOfFlesh','Parede de Carne',22],['queenSlime','Geleia Rainha',38],['theTwins','Os Gêmeos',20],
-    ['destroyer','O Destruidor',25],['skeletronPrime','Esqueletron Alfa',18],['plantera','Plantera',11],
-    ['golem','Golem',5],['duke','Duque Peixe-dragão',4],['empress','Imperatriz da Luz',37],
-    ['cultist','Cultista Lunático',24],['moonLord','Senhor da Lua',8]
-  ];
-  var EVENTS=[
-    ['bloodMoon','Lua de Sangue','item:4271'],['goblins','Invasão dos Goblins','item:361'],
-    ['oldOnesArmy','Exército do Antigo','item:3828'],['darkMage','Mago Sombrio',32],
-    ['ogre','Ogro',33],['betsy','Betsy',34],['frostLegion','Legião Congelada','item:602'],
-    ['pirates','Invasão Pirata','item:1315'],['flyingDutchman','Holandês Voador',26],
-    ['eclipse','Eclipse Solar','item:2767'],['pumpkinMoon','Lua de Abóbora','item:1844'],
-    ['mourningWood','Árvore da Morte',10],['pumpking','Reibóbora',13],
-    ['frostMoon','Lua Congelada','item:1958'],['everscream','Everscream',3],
-    ['santaNK1','Papai-Noel-NK1',17],['iceQueen','Rainha do Gelo',6],
-    ['martians','Invasão Marciana','item:2797'],['martianSaucer','Disco Marciano',9],
-    ['solarPillar','Pilar Solar',27],['vortexPillar','Pilar do Vórtice',28],
-    ['nebulaPillar','Pilar da Nebulosa',29],['stardustPillar','Pilar de Poeira Estelar',30]
-  ];
-  function bossTile(b,done){
-    var li=el('li','boss'+(done?' done':''));
-    if(spritesOn.npc){
-      var img=document.createElement('img');img.alt='';img.width=48;img.height=48;
-      img.src=typeof b[2]==='number'?'/sprites/npc/boss_'+b[2]+'.png':'/sprites/item/'+String(b[2]).slice(5)+'.png';
-      img.onerror=function(){img.remove();};
-      li.appendChild(img);
-    }
-    li.appendChild(el('span','bn',b[1]));
-    if(done){var mark=el('span','bs','✓');mark.setAttribute('aria-hidden','true');li.appendChild(mark);}
-    li.appendChild(el('span','sr-only',done?' (derrotado)':' (ainda não derrotado)'));
-    return li;
-  }
-  var bossKey='';
-  function renderBosses(p){
-    if(!p||!p.downed)return;
-    var key=JSON.stringify(p)+spritesOn.npc;
-    if(key===bossKey)return;
-    bossKey=key;
-    var list=BOSSES;
-    if(p.downed.eaterOfWorlds===undefined){
-      // older server mod: one flag for either evil boss, credit the world's own evil
-      p.downed[p.crimson?'brainOfCthulhu':'eaterOfWorlds']=!!p.downed.evilBoss;
-    }
-    var done=list.filter(function(b){return p.downed[b[0]];}).length;
-    var bl=$('bossList'),ev=$('eventList');bl.textContent='';ev.textContent='';
-    list.forEach(function(b){bl.appendChild(bossTile(b,!!p.downed[b[0]]));});
-    EVENTS.forEach(function(b){ev.appendChild(bossTile(b,!!p.downed[b[0]]));});
-    $('bossCount').textContent=done+'/'+list.length;
-    $('bossFill').style.width=(done/list.length*100)+'%';
-    $('bossBar').setAttribute('aria-label',done+' de '+list.length+' bosses derrotados');
-    renderModBosses(p.modBosses||[]);
-    $('bossPanel').hidden=false;
-  }
-  var MOD_NAMES={FargowiltasSouls:"Fargo's Souls",Fargowiltas:"Fargo's Mutant"};
-  function renderModBosses(list){
-    var box=$('modBossBox'),ul=$('modBossList');ul.textContent='';
-    if(!list.length){box.hidden=true;return;}
-    var mods=[];list.forEach(function(b){if(mods.indexOf(b.mod)<0)mods.push(b.mod);});
-    $('modBossTitle').textContent='Bosses dos mods ('+mods.map(function(m){return MOD_NAMES[m]||m;}).join(', ')+')';
-    list.forEach(function(b){
-      var li=el('li','boss'+(b.downed?' done':'')+(b.kind!=='boss'?' minor':''));
-      if(b.icon){
-        var img=document.createElement('img');img.alt='';img.width=48;img.height=48;img.className='modhead';
-        img.src='/sprites/modboss/'+b.icon+'.png';img.onerror=function(){img.remove();};li.appendChild(img);
-      }
-      li.appendChild(el('span','bn',b.name));
-      if(b.kind==='miniboss')li.appendChild(el('span','bk','miniboss'));
-      if(b.downed){var mark=el('span','bs','✓');mark.setAttribute('aria-hidden','true');li.appendChild(mark);}
-      li.appendChild(el('span','sr-only',b.downed?' (derrotado)':' (ainda não derrotado)'));
-      ul.appendChild(li);
-    });
-    var done=list.filter(function(b){return b.downed;}).length;
-    $('modBossCount').textContent=done+'/'+list.length;
-    $('modBossFill').style.width=(done/list.length*100)+'%';
-    $('modBossBar').setAttribute('aria-label',done+' de '+list.length+' bosses de mods derrotados');
-    box.hidden=false;
-  }
-
-  function tick(){
-    fetch('/api/status',{cache:'no-store'}).then(function(r){return r.json();})
-      .then(apply).catch(function(){
-        var gem=$('gem');gem.className='status-gem is-loading';$('gemText').textContent='sem conexão';
-      });
-  }
-
-  // copy address
-  function copyAddr(){
-    var txt=$('addr').textContent.trim();
-    var show=function(ok){var t=$('toast');t.textContent=ok?'Endereço copiado!':'Não deu pra copiar, selecione o IP e copie à mão';
-      t.classList.toggle('err',!ok);t.classList.add('show');setTimeout(function(){t.classList.remove('show');},ok?1600:3200);};
-    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(function(){show(true);},function(){show(false);});}
-    else{var ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();var ok=false;try{ok=document.execCommand('copy');}catch(e){}document.body.removeChild(ta);show(ok);}
-  }
-  $('copyBtn').addEventListener('click',copyAddr);
-
-  // relative "updated" refresh
-  setInterval(function(){$('updated').textContent=fmtAgo(lastUpdated);},1000);
-
-  tick();
-  setInterval(tick,5000);
-})();
-</script>
+<script src="/js/app.js"></script>
 </body>
 </html>
