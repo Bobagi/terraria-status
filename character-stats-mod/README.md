@@ -106,6 +106,7 @@ created by the server and synced with vanilla packets.
 | `cleargraves <player> [radius]` | Deletes tombstones (and their epitaphs) around the player, 150 tiles by default, up to 1000, without dropping the stone |
 | `event <bloodmoon\|eclipse\|goblins\|frost\|pirates\|martians\|pumpkinmoon\|frostmoon\|rain\|stop>` | World events, `stop` ends them all |
 | `moon <full\|new\|0-7> [night]` | Sets the moon phase right away (0 = full, 4 = new); vanilla only advances it at a natural dawn. `night` also starts the night if it is day |
+| `spawnrate [1-10]` | Shows or changes the natural enemy spawn multiplier (`SpawnRate.cs`: spawn interval divided and enemy cap multiplied by it). Default 3x, back to the default on restart |
 | `pings` | Round-trip latency of each online player (end-to-end echo, see `/ping` below) |
 
 ## Build
