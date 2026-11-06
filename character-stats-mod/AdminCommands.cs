@@ -126,17 +126,28 @@ namespace StatusExport
 
 		protected static IEntitySource Source => new EntitySource_DebugCommand("StatusExport admin");
 
-		// Drops `stack` of an item on the player, split in max-stack piles. The
-		// client picks it up on the next frame, with or without inventory room left
-		// for it the pile stays on the ground next to them.
+		// Puts `stack` of an item into the player's inventory, split in max-stack piles.
+		// The inventory belongs to the client (vanilla ignores slot packets for your own
+		// character), so the server can't write it. What it can do is spawn the pile on
+		// the player already owned by them: an item spawned by the server is reserved
+		// for the server (index 255) and nobody can grab it until the owner check hands
+		// it over, which is why piles used to sit on the ground. Reserving it for the
+		// player and sending ItemOwner makes their client grab it on the next frame,
+		// straight into the inventory (or the Void Bag when the inventory is full).
 		internal static void Drop(Player p, int type, int stack, int prefix = 0)
 		{
 			int max = Math.Max(1, ContentSamples.ItemsByType[type].maxStack);
 			if (stack / max + 1 > MaxPiles) throw new AdminError($"quantidade demais: limite de {MaxPiles} pilhas de {max}");
+			var spot = new Rectangle((int)p.Center.X - 1, (int)p.Center.Y - 1, 2, 2);
 			for (int left = stack; left > 0; left -= max)
 			{
-				int index = Item.NewItem(Source, p.getRect(), type, Math.Min(left, max), noBroadcast: true, prefixGiven: prefix, noGrabDelay: true);
+				int index = Item.NewItem(Source, spot, type, Math.Min(left, max), noBroadcast: true, prefixGiven: prefix, noGrabDelay: true);
+				Item item = Main.item[index];
+				item.velocity = Vector2.Zero;
+				item.playerIndexTheItemIsReservedFor = p.whoAmI;
+				item.keepTime = 0;
 				NetMessage.SendData(MessageID.SyncItem, -1, -1, null, index, 1f);
+				NetMessage.SendData(MessageID.ItemOwner, -1, -1, null, index);
 			}
 		}
 
@@ -502,6 +513,131 @@ namespace StatusExport
 		}
 	}
 
+	public class TownNpcsCommand : AdminCommand
+	{
+		public override string Command => "townnpcs";
+		public override string Usage => "townnpcs";
+		public override string Description => "Faz nascer agora os moradores que faltam: os que o jogo deixa nascer e os que ja viveram no mundo (vanilla e de mods)";
+
+		// Visitors and event NPCs that must not be forced in: Old Man (curse of the dungeon),
+		// Traveling Merchant and Skeleton Merchant (they come and go on their own).
+		private static readonly HashSet<int> Excluded = new HashSet<int> { NPCID.OldMan, NPCID.TravellingMerchant, NPCID.SkeletonMerchant };
+
+		// A resident comes back when the game would let it spawn now, or when it already
+		// lived in this world: the bestiary remembers every town NPC a player talked to.
+		// The second rule matters because several vanilla conditions read the inventories
+		// of the players online (Merchant: coins, Arms Dealer: a gun, Nurse: max life...),
+		// so with nobody online the game's own check alone would skip them.
+		private static bool Wanted(int type)
+		{
+			if (Excluded.Contains(type)) return false;
+			if (Main.townNPCCanSpawn[type]) return true;
+			NPC sample = ContentSamples.NpcsByNetId.TryGetValue(type, out var s) ? s : null;
+			if (sample == null || !sample.townNPC) return false;
+			if (type == NPCID.SantaClaus && !Main.xMas) return false;
+			return ContentSamples.NpcBestiaryCreditIdsByNpcNetIds.TryGetValue(type, out string key)
+				&& Main.BestiaryTracker.Chats.GetWasChatWith(key);
+		}
+
+		private static readonly System.Reflection.MethodInfo CheckSpawns =
+			typeof(Main).GetMethod("UpdateTime_SpawnTownNPCs", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+
+		protected override void Execute(CommandCaller caller, string[] args)
+		{
+			if (CheckSpawns == null) throw new AdminError("UpdateTime_SpawnTownNPCs nao encontrado nesta versao do tModLoader");
+			// Run the game's own check right now (it normally runs every ~2 in-game hours):
+			// it fills Main.townNPCCanSpawn with every town NPC whose conditions are met and
+			// who is missing, mod NPCs included (NPCLoader.CanTownNPCSpawn at its end).
+			Main.checkForSpawns = int.MaxValue / 2;
+			CheckSpawns.Invoke(null, null);
+
+			var spawned = new List<string>();
+			int x = Main.spawnTileX * 16, y = Main.spawnTileY * 16;
+			for (int type = 1; type < Main.townNPCCanSpawn.Length; type++)
+			{
+				if (NPC.AnyNPCs(type) || !Wanted(type)) continue;
+				int index = NPC.NewNPC(Source, x, y, type);
+				if (index >= Main.maxNPCs) continue;
+				NPC n = Main.npc[index];
+				n.homeless = true;
+				n.homeTileX = Main.spawnTileX;
+				n.homeTileY = Main.spawnTileY;
+				// Moves straight into a free valid house when there is one; otherwise it stays
+				// homeless and the game houses it on its next check.
+				WorldGen.QuickFindHome(index);
+				NetMessage.SendData(MessageID.SyncNPC, -1, -1, null, index);
+				Main.townNPCCanSpawn[type] = false;
+				spawned.Add(Lang.GetNPCNameValue(type));
+			}
+			WorldGen.prioritizedTownNPCType = 0;
+			caller.Reply(spawned.Count == 0
+				? "nenhum morador faltando (todos os que podem nascer ou ja viveram aqui estao vivos)"
+				: $"{spawned.Count} morador(es) nasceram no spawn: " + string.Join(", ", spawned));
+		}
+	}
+
+	public class ClearItemsCommand : AdminCommand
+	{
+		public override string Command => "clearitems";
+		public override string Usage => "clearitems";
+		public override string Description => "Apaga todos os itens caidos no chao do mundo";
+
+		protected override void Execute(CommandCaller caller, string[] args)
+		{
+			int removed = 0;
+			for (int i = 0; i < Main.maxItems; i++)
+			{
+				if (!Main.item[i].active) continue;
+				Main.item[i].TurnToAir();
+				Main.item[i].active = false;
+				NetMessage.SendData(MessageID.SyncItem, -1, -1, null, i);
+				removed++;
+			}
+			caller.Reply($"{removed} item(ns) apagado(s) do chao");
+		}
+	}
+
+	public class ClearGravesCommand : AdminCommand
+	{
+		public override string Command => "cleargraves";
+		public override string Usage => "cleargraves <jogador> [raio_em_blocos]";
+		public override string Description => "Apaga as lapides em volta do jogador, sem drop (raio padrao 150 blocos)";
+
+		private const int DefaultRadius = 150;
+		private const int MaxRadius = 1000;
+
+		protected override void Execute(CommandCaller caller, string[] args)
+		{
+			Need(args, 1);
+			var p = FindPlayer(args[0]);
+			int radius = args.Length > 1 ? Int(args[1], "raio") : DefaultRadius;
+			if (radius < 1 || radius > MaxRadius) throw new AdminError($"raio precisa ser de 1 a {MaxRadius}");
+
+			int cx = (int)(p.Center.X / 16f), cy = (int)(p.Center.Y / 16f);
+			int x0 = Math.Max(1, cx - radius), x1 = Math.Min(Main.maxTilesX - 2, cx + radius);
+			int y0 = Math.Max(1, cy - radius), y1 = Math.Min(Main.maxTilesY - 2, cy + radius);
+			int removed = 0;
+			for (int x = x0; x <= x1; x++)
+			for (int y = y0; y <= y1; y++)
+			{
+				Tile t = Main.tile[x, y];
+				if (!t.HasTile || t.TileType != TileID.Tombstones) continue;
+				// A tombstone is 2x2 with an epitaph sign. Breaking it with KillTile
+				// would still drop the stone (the 2x2 check that tears down the rest of
+				// the object ignores noItem), so the tiles are cleared directly instead.
+				// Counted once, at the top-left frame, which also owns the sign.
+				if (t.TileFrameX % 36 == 0 && t.TileFrameY == 0)
+				{
+					Sign.KillSign(x, y);
+					removed++;
+				}
+				t.ClearTile();
+				NetMessage.SendTileSquare(-1, x, y, 1);
+			}
+			caller.Reply($"{removed} lapide(s) apagada(s) num raio de {radius} blocos em volta de {p.name}");
+		}
+	}
+
 	public class EventCommand : AdminCommand
 	{
 		public override string Command => "event";
@@ -545,6 +681,28 @@ namespace StatusExport
 			Main.invasionDelay = 0;
 			Main.StartInvasion(id);
 			if (Main.invasionType != id) throw new AdminError("o jogo recusou: invasao em andamento ou ninguem com vida suficiente");
+		}
+	}
+
+	// Moon phase only advances at a natural dawn (Main.UpdateTime_StartDay), so this sets it
+	// directly and syncs it with the world packet. 0 = full, 4 = new.
+	public class MoonCommand : AdminCommand
+	{
+		private static readonly string[] Names = { "full", "", "", "", "new" };
+		public override string Command => "moon";
+		public override string Usage => "moon <full|new|0-7> [night]";
+		public override string Description => "Muda a fase da lua (0 = cheia, 4 = nova); night faz anoitecer agora";
+
+		protected override void Execute(CommandCaller caller, string[] args)
+		{
+			Need(args, 1);
+			int phase = Array.IndexOf(Names, args[0]);
+			if (phase < 0 && (!int.TryParse(args[0], out phase) || phase < 0 || phase > 7))
+				throw new AdminError("uso: " + Usage);
+			Main.moonPhase = phase;
+			if (args.Length > 1 && args[1] == "night" && Main.dayTime) { Main.dayTime = false; Main.time = 0; }
+			NetMessage.SendData(MessageID.WorldData);
+			caller.Reply("moon " + phase + " ok");
 		}
 	}
 }

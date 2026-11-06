@@ -91,7 +91,7 @@ created by the server and synced with vanilla packets.
 | --- | --- |
 | `who` | Online players: life, mana, position |
 | `find <item\|npc\|buff> <text>` | Looks up ids by name |
-| `give <player> <item> [amount] [prefix]` | Item by id or name (`Terra_Blade`), any amount up to 50 piles |
+| `give <player> <item> [amount] [prefix]` | Item by id or name (`Terra_Blade`), any amount up to 50 piles. Goes straight into the inventory (Void Bag when full), see below |
 | `coins <player> <platinum> [gold] [silver] [copper]` | Coins |
 | `heal <player\|all>` | Fills life and mana (drops hearts and stars, the client owns these values) |
 | `bag <player>` | Lists the player's Void Bag, read only: the client owns that storage |
@@ -101,7 +101,11 @@ created by the server and synced with vanilla packets.
 | `coffin <player\|reset>` | Moves the Fargo's Souls Cursed Coffin arena onto the player and spawns the boss; `reset` removes it after the fight |
 | `oregen <cobalt\|palladium\|mythril\|orichalcum\|adamantite\|titanium> [veins]` | Adds new ore veins underground, 60 by default, up to 300 |
 | `clearhostile` | Removes enemies and bosses without drops, keeps critters and target dummies |
+| `clearitems` | Deletes every item lying on the ground in the world |
+| `townnpcs` | Spawns every missing resident at once, at the world spawn (then they look for a free house): the ones the game would let spawn now plus every town NPC that already lived in this world (bestiary chat record), vanilla and modded. Skips Old Man and the traveling/skeleton merchants |
+| `cleargraves <player> [radius]` | Deletes tombstones (and their epitaphs) around the player, 150 tiles by default, up to 1000, without dropping the stone |
 | `event <bloodmoon\|eclipse\|goblins\|frost\|pirates\|martians\|pumpkinmoon\|frostmoon\|rain\|stop>` | World events, `stop` ends them all |
+| `moon <full\|new\|0-7> [night]` | Sets the moon phase right away (0 = full, 4 = new); vanilla only advances it at a natural dawn. `night` also starts the night if it is day |
 | `pings` | Round-trip latency of each online player (end-to-end echo, see `/ping` below) |
 
 ## Build
@@ -121,6 +125,10 @@ cd /path/to/tModLoader/ModSources/StatusExport
 PATH=/tmp/sdk:$PATH HOME=/tmp dotnet build -c Release
 # → StatusExport.tmod lands in ~/.local/share/Terraria/tModLoader/Mods/
 ```
+
+## Items go straight into the inventory
+
+The inventory belongs to the client: vanilla ignores slot packets for your own character, so the server can't write it. An item the server spawns is also reserved for the server (owner 255), and nobody can grab it until the owner check hands it over, which is why `give` used to leave piles on the ground behind a moving player. `Drop` now spawns each pile at the player's center already reserved for them and sends `ItemOwner`, so their client grabs it on the next frame (into the Void Bag when the inventory is full).
 
 ## Ore drops
 

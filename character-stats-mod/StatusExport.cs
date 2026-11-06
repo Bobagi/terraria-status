@@ -164,11 +164,14 @@ namespace StatusExport
 		// ---- world summary ----------------------------------------------------
 		private static object BuildWorld()
 		{
-			// In-game 24h clock (the standard Terraria time→hour conversion).
+			// In-game 24h clock. Day starts at 4:30 (Main.time 0 of day), night at 19:30
+			// (Main.time 0 of night = 54000 ticks later). Vanilla's own text subtracts 7.5
+			// and then 12 more for its AM/PM clock; using only -7.5 here put every reading
+			// 12 hours off (21:49 came out as "09:49" and the site drew a day sky).
 			double t = Main.time;
 			if (!Main.dayTime) t += 54000.0;
-			t = t / 86400.0 * 24.0 - 7.5;
-			if (t < 0.0) t += 24.0;
+			t = t / 3600.0 + 4.5;
+			if (t >= 24.0) t -= 24.0;
 			int hh = (int)t, mm = (int)((t - hh) * 60.0);
 
 			var downed = new Dictionary<string, bool>
