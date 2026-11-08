@@ -153,7 +153,7 @@ server {
 | `TMOD_DIFFICULTY`| `Expert`                                | Exibido na página                    |
 | `TMOD_MAXPLAYERS`| `8`                                     | Vagas                                |
 | `SERVER_HOST`    | `bobagi.space`                          | Endereço que os jogadores digitam    |
-| `SERVER_IP`      | `46.202.144.75`                         | Endereço alternativo exibido         |
+| `SERVER_IP`      | `163.176.40.32`                         | Endereço alternativo exibido         |
 | `SERVER_PORT`    | `7777`                                  | Porta do jogo                        |
 | `TMOD_EVENTS_FILE` | `<data>/serverevents.jsonl`        | Log de bosses/eventos escrito pelo mod |
 | `DISCORD_WEBHOOK_URL` | (desligado)                         | Webhook do Discord; ou use o arquivo `discord-webhook.url` |

@@ -154,7 +154,7 @@ server {
 | `TMOD_DIFFICULTY`| `Expert`                                | Shown on the page                   |
 | `TMOD_MAXPLAYERS`| `8`                                     | Player slots                        |
 | `SERVER_HOST`    | `bobagi.space`                          | Address players type                |
-| `SERVER_IP`      | `46.202.144.75`                         | Shown as fallback address           |
+| `SERVER_IP`      | `163.176.40.32`                         | Shown as fallback address           |
 | `SERVER_PORT`    | `7777`                                  | Game port                           |
 | `TMOD_EVENTS_FILE` | `<data>/serverevents.jsonl`        | Boss/event log written by the mod   |
 | `DISCORD_WEBHOOK_URL` | (off)                               | Discord webhook; or put it in `discord-webhook.url` |
