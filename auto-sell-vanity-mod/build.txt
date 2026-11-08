@@ -1,0 +1,6 @@
+displayName = Auto Sell Vanity
+author = Bobagi
+version = 0.1
+# side = Client: so quem joga com ele instalado ganha o recurso; o servidor e os
+# outros jogadores nao precisam do mod (o inventario e do cliente, o servidor nao mexe nele).
+side = Client

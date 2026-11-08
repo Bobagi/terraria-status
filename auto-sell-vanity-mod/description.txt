@@ -1,0 +1,3 @@
+Vende sozinho os itens de vanity (roupas e acessorios visuais) que caem no inventario,
+pagando o preco de venda em moedas. Itens favoritados nunca sao vendidos; os que voce ja
+tinha ao entrar no mundo sao favoritados automaticamente para ficarem seguros.
