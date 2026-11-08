@@ -19,6 +19,8 @@ namespace AutoSellVanity
 		// items that show up AFTER the mod is running get sold.
 		public override void OnEnterWorld()
 		{
+			Main.NewText("Auto Sell Vanity: " + (ModContent.GetInstance<AutoSellConfig>().Enabled ? "ligado" : "desligado") + ". Use /autosell ou Configuracoes > Mod Configuration para alternar.", 150, 200, 255);
+			if (!ModContent.GetInstance<AutoSellConfig>().Enabled) return;
 			int protectedCount = 0;
 			for (int i = 0; i < MainInventorySlots; i++)
 			{
@@ -36,6 +38,7 @@ namespace AutoSellVanity
 		public override void PostUpdate()
 		{
 			if (Player.whoAmI != Main.myPlayer || Main.netMode == NetmodeID.Server) return;
+			if (!ModContent.GetInstance<AutoSellConfig>().Enabled) return;
 			if (++timer < ScanEveryTicks) return;
 			timer = 0;
 
