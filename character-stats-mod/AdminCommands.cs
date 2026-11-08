@@ -509,6 +509,7 @@ namespace StatusExport
 				NetMessage.SendData(MessageID.SyncNPC, -1, -1, null, n.whoAmI);
 				removed++;
 			}
+			BossFights.Reset();   // removed bosses are not a lost fight: do not report them
 			caller.Reply($"{removed} removido(s)");
 		}
 	}

@@ -81,7 +81,9 @@ namespace StatusExport
 	{
 		public override void Kill(double damage, int hitDirection, bool pvp, Terraria.DataStructures.PlayerDeathReason damageSource)
 		{
-			if (Main.dedServ) DeathTracker.Increment(Player.name);
+			if (!Main.dedServ) return;
+			DeathTracker.Increment(Player.name);
+			BossFights.OnPlayerDeath(Player.name);   // credits the death to any boss fight in progress
 		}
 	}
 

@@ -109,6 +109,23 @@ created by the server and synced with vanilla packets.
 | `spawnrate [1-10]` | Shows or changes the natural enemy spawn multiplier (`SpawnRate.cs`: spawn interval divided and enemy cap multiplied by it). Default 3x, back to the default on restart |
 | `pings` | Round-trip latency of each online player (end-to-end echo, see `/ping` below) |
 
+## Boss fights and world events (`BossFights.cs`)
+
+Appends one JSON line per event to `serverevents.jsonl` in the save directory (rotated at 20 MB). The
+status app turns them into Discord messages and `/api/fights`; see "Discord feed" in the main README.
+
+| `type` | Fields |
+| --- | --- |
+| `boss_kill` | `boss`, `bossKey` (NPCID name, or the mod's `Mod/Class`), `durationSec`, `participants[{name, damage, deaths}]` |
+| `boss_wipe` | same, plus `lifePct`: the boss despawned or the party died |
+| `event_start` / `event_end` | `event` (`bloodMoon`, `eclipse`, `pumpkinMoon`, `frostMoon`, `goblins`, `frostLegion`, `pirates`, `martians`, `oldOnesArmy`), `durationSec` on end |
+| `death` | `name`, `inBoss` |
+
+Every line also has `v` (1), `id` and `t` (UTC). Damage is measured from the strike packet (28) as the boss's life
+lost, not read from `OnHitBy*`, which run on the client; see the main README. Whatever is already running when
+the server boots is not announced as an event, and `clearhostile` clears fights without reporting them.
+
+
 ## Build
 
 **Easiest:** just use the prebuilt [`prebuilt/StatusExport.tmod`](prebuilt/) and skip to Deploy.

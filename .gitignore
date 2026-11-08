@@ -12,3 +12,7 @@ public/sprites/
 
 # TerraMap Web build (tools/terramap/build.sh)
 public/mapa/
+
+# Discord webhook secret + feed state (never commit)
+discord-webhook.url
+state/

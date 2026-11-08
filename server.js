@@ -19,6 +19,8 @@ const { execFile } = require('child_process');
 const { isCompleteWorld } = require('./world-snapshot');
 const { parsePlaying, NAME_MAX } = require('./console-players');
 const { sanitizeModBosses, pickLive } = require('./world-extras');
+const { parseEvents, recentKills } = require('./fight-events');
+const { createFeed } = require('./discord-feed');
 
 // ---- deploy config (override via environment; defaults match bobagi.space) --
 const PORT = parseInt(process.env.STATUS_PORT || '3063', 10);
@@ -36,6 +38,9 @@ const STATS_FILE = process.env.TMOD_STATS_FILE || path.join(DATA_DIR, 'playersta
 // The mod rewrites the file every ~3 s while anyone is online. Newer than this, it
 // is the live truth about who is connected.
 const STATS_FRESH_MS = 15000;
+// Boss fights, invasions and deaths, one JSON line each, written by the same mod
+// (BossFights.cs). Feeds the Discord webhook and /api/fights.
+const EVENTS_FILE = process.env.TMOD_EVENTS_FILE || path.join(DATA_DIR, 'serverevents.jsonl');
 
 // ---- static, subject-known metadata --------------------------------------
 const MODS = [
@@ -324,9 +329,34 @@ async function collectWorldSnapshot() {
   worldSnapshot = { buf, etag, mtime: st.mtime };
 }
 
+// Discord webhook (no-op until DISCORD_WEBHOOK_URL / discord-webhook.url exists).
+const feed = createFeed({ dir: __dirname, eventsFile: EVENTS_FILE });
+
+// Last boss kills for the site, parsed from the tail of the event log. Cached
+// briefly: the page polls often and the file only grows.
+let fightsCache = { at: 0, body: '[]' };
+function fightsJson() {
+  if (Date.now() - fightsCache.at < 10000) return fightsCache.body;
+  let body = '[]';
+  try {
+    const st = fs.statSync(EVENTS_FILE);
+    const from = Math.max(0, st.size - 512 * 1024);
+    const fd = fs.openSync(EVENTS_FILE, 'r');
+    try {
+      const buf = Buffer.alloc(st.size - from);
+      fs.readSync(fd, buf, 0, buf.length, from);
+      let text = buf.toString('utf8');
+      if (from > 0) text = text.slice(text.indexOf('\n') + 1);   // drop the cut first line
+      body = JSON.stringify(recentKills(parseEvents(text), 20));
+    } finally { fs.closeSync(fd); }
+  } catch (_) { /* no log yet */ }
+  fightsCache = { at: Date.now(), body };
+  return body;
+}
+
 // ---- poll loops ------------------------------------------------------------
 async function fastLoop() {
-  try { await collectInspect(); await collectStats(); snapshot.updatedAt = new Date().toISOString(); }
+  try { await collectInspect(); await collectStats(); snapshot.updatedAt = new Date().toISOString(); feed.onSnapshot(snapshot); }
   catch (_) {}
   finally { setTimeout(fastLoop, 8000); }
 }
@@ -396,6 +426,10 @@ http.createServer((req, res) => {
     res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'access-control-allow-origin': '*' });
     return res.end(JSON.stringify(snapshot));
   }
+  if (req.url === '/api/fights' || req.url.startsWith('/api/fights?')) {
+    res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'access-control-allow-origin': '*' });
+    return res.end(fightsJson());
+  }
   if (req.url === '/healthz') { res.writeHead(200); return res.end('ok'); }
   if (req.url.split('?')[0] === '/mapa/mundo.wld') return serveWorld(req, res);
   if (req.url === '/mapa') { res.writeHead(301, { location: '/mapa/' }); return res.end(); }
@@ -423,6 +457,7 @@ http.createServer((req, res) => {
   SERVER.sprites = { item: hasSprites('item'), buff: hasSprites('buff'), npc: hasSprites('npc') };
   loadModBossIcons();
   fastLoop(); diskLoop(); worldLoop();
+  feed.start();
   setTimeout(playerLoop, 3000); // let the first inspect land so `online` is known
 
 });

@@ -156,6 +156,9 @@ server {
 | `SERVER_HOST`    | `bobagi.space`                          | Address players type                |
 | `SERVER_IP`      | `46.202.144.75`                         | Shown as fallback address           |
 | `SERVER_PORT`    | `7777`                                  | Game port                           |
+| `TMOD_EVENTS_FILE` | `<data>/serverevents.jsonl`        | Boss/event log written by the mod   |
+| `DISCORD_WEBHOOK_URL` | (off)                               | Discord webhook; or put it in `discord-webhook.url` |
+| `DISCORD_BACKFILL` | unset                                  | `1` replays the existing log on first run |
 
 The **mod list** shown on the page is the `MODS` array at the top of `server.js` - edit it
 to match your server's `TMOD_ENABLEDMODS` (name, Workshop ID, one-line description).
@@ -225,6 +228,38 @@ pm2 restart terraria-status               # re-detect the icon set
 
 Same rule as the other sprites: the art belongs to each mod's authors, `public/sprites/`
 stays git-ignored. A boss without an icon file shows its name only.
+
+## Discord feed (optional)
+
+Posts themed messages to a Discord channel through a **webhook**: a boss dies and the channel
+gets the fight time, the damage and **DPS of every player**, who died, and what the kill unlocks
+(Hardmode, the Temple...); blood moons, eclipses, invasions and the pumpkin/frost moons when they
+start and end; the **weekly ranking** (Sundays, 20:00 Brasilia: bosses beaten, most damage, best
+single-fight DPS, most deaths); and a notice when the server goes down, comes back or restarts.
+Messages are in Portuguese, with PT-BR boss names; unknown (modded) bosses use the name the game reports.
+It does **not** post players joining or leaving.
+
+```
+tModLoader --(BossFights.cs)--> serverevents.jsonl --(discord-feed.js tails it)--> webhook --> Discord
+```
+
+- The mod stays offline: it only appends one JSON line per event to `serverevents.jsonl` next to the world.
+  The app tails the file, so the **webhook URL (a secret) lives only on the host** and a Discord outage
+  can never touch the game server. Restarts resume from a saved offset (`state/`), and history is **not**
+  replayed into the channel on first run (`DISCORD_BACKFILL=1` replays it).
+- **Per-player damage** can't use tModLoader's `OnHitByItem`/`OnHitByProjectile` on a dedicated server (they
+  run on the client that dealt the hit). The mod reads the strike packet (28), notes who sent it and the boss's
+  life before vanilla handles it, and measures the life lost right after. That is exact (no overkill, defense
+  already applied) and needs nothing on the client. Bosses with parts (Twins, Skeletron, Destroyer, Moon Lord...)
+  count as one fight. Damage over time (poison, fire) is credited to whoever last hit the boss.
+- A boss that despawns or wipes the party is reported as a lost fight, with how much life it had left.
+
+Setup: in Discord, **Edit channel > Integrations > Webhooks > New webhook**, copy the URL and put it in
+`discord-webhook.url` next to `server.js` (git-ignored, `chmod 600`) or in `DISCORD_WEBHOOK_URL`. With no URL
+the feed is simply off. Rebuild and redeploy the `StatusExport` mod (0.10+), then restart the app.
+
+`GET /api/fights` returns the last 20 boss kills (per-player damage, DPS and deaths) for the site.
+
 
 ## World map (`/mapa/`)
 

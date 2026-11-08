@@ -155,6 +155,9 @@ server {
 | `SERVER_HOST`    | `bobagi.space`                          | Endereço que os jogadores digitam    |
 | `SERVER_IP`      | `46.202.144.75`                         | Endereço alternativo exibido         |
 | `SERVER_PORT`    | `7777`                                  | Porta do jogo                        |
+| `TMOD_EVENTS_FILE` | `<data>/serverevents.jsonl`        | Log de bosses/eventos escrito pelo mod |
+| `DISCORD_WEBHOOK_URL` | (desligado)                         | Webhook do Discord; ou use o arquivo `discord-webhook.url` |
+| `DISCORD_BACKFILL` | vazio                                  | `1` reenvia o log existente na primeira execução |
 
 A **lista de mods** exibida é o array `MODS` no topo do `server.js` - edite pra bater com
 o `TMOD_ENABLEDMODS` do seu servidor (nome, ID da Workshop, descrição de uma linha).
@@ -180,6 +183,36 @@ Pontos-chave (detalhes no README do mod):
 
 Até o mod ser ativado, o modal mostra uma nota explicando isso - o site funciona
 totalmente sem ele.
+
+## Feed no Discord (opcional)
+
+Manda mensagens temáticas para um canal do Discord por **webhook**: quando um boss morre, o canal recebe o
+tempo da luta, o dano e o **DPS de cada jogador**, quem morreu e o que a vitória libera (Hardmode, Templo...);
+Lua de Sangue, Eclipse, invasões e luas de Abóbora/Gelo quando começam e terminam; o **ranking da semana**
+(domingo, 20h de Brasília: bosses derrotados, mais dano, maior DPS numa luta, mais mortes); e um aviso quando o
+servidor cai, volta ou reinicia. **Não** avisa entrada e saída de jogadores.
+
+```
+tModLoader --(BossFights.cs)--> serverevents.jsonl --(discord-feed.js lê o fim)--> webhook --> Discord
+```
+
+- O mod continua offline: só acrescenta uma linha JSON por evento em `serverevents.jsonl`, ao lado do mundo.
+  O app lê o arquivo, então a **URL do webhook (um segredo) fica só no host** e uma falha do Discord nunca
+  chega ao servidor do jogo. Ao reiniciar, retoma do ponto salvo (`state/`) e **não** reenvia o histórico na
+  primeira execução (`DISCORD_BACKFILL=1` reenvia).
+- O **dano por jogador** não pode usar `OnHitByItem`/`OnHitByProjectile` num servidor dedicado (rodam no
+  cliente que bateu). O mod lê o pacote de golpe (28), anota quem mandou e a vida do boss antes de o jogo
+  processar, e mede a vida perdida logo depois. É exato (sem overkill, defesa já aplicada) e não exige nada
+  no cliente. Bosses com partes (Gêmeos, Esqueletron, Destruidor, Lorde da Lua...) contam como uma luta.
+  Dano contínuo (veneno, fogo) vai para quem acertou o boss por último.
+- Boss que some ou derruba o grupo vira "luta perdida", com a vida que ele ainda tinha.
+
+Configuração: no Discord, **Editar canal > Integrações > Webhooks > Novo webhook**, copie a URL e coloque em
+`discord-webhook.url` ao lado do `server.js` (ignorado pelo git, `chmod 600`) ou em `DISCORD_WEBHOOK_URL`. Sem
+URL o feed fica desligado. Recompile e reinstale o mod `StatusExport` (0.10+) e reinicie o app.
+
+`GET /api/fights` devolve as últimas 20 mortes de boss (dano, DPS e mortes por jogador) para o site.
+
 
 ## Mapa do mundo (`/mapa/`)
 
