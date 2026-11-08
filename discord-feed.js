@@ -272,6 +272,9 @@ function createFeed(opts) {
 
   let state = { offset: null, ids: [], lastWeekly: null };
   try { state = Object.assign(state, JSON.parse(fs.readFileSync(stateFile, 'utf8'))); } catch (_) { /* first run */ }
+  // First run with no events file yet: there is no history to skip, so the first line the mod
+  // writes must be posted. (Before this, that first line was treated as history and dropped.)
+  if (state.offset == null && !fs.existsSync(eventsFile)) state.offset = 0;
 
   function save() {
     try {

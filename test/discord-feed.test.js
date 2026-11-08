@@ -109,6 +109,27 @@ test('feed tails the log: skips history, posts new lines once, survives a partia
   }
 });
 
+test('events file created after the app started: its first line is posted, not skipped as history', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'feed-'));
+  const file = path.join(dir, 'serverevents.jsonl');           // does not exist yet
+  const posts = [];
+  const realFetch = global.fetch;
+  global.fetch = async (url, init) => { posts.push(JSON.parse(init.body)); return { ok: true, status: 204 }; };
+  process.env.DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/123/abc';
+  try {
+    const feed = feedMod.createFeed({ dir, eventsFile: file, sendGapMs: 0 });
+    await feed.tick();                                          // no file: nothing to do
+    fs.writeFileSync(file, JSON.stringify({ v: 1, id: 'd1', t: '2026-11-08T11:41:17Z', type: 'boss_kill', boss: 'The Destroyer', bossKey: 'TheDestroyer', durationSec: 21, participants: [{ name: 'Bobagi', damage: 120000, deaths: 0 }] }) + '\n');
+    await feed.tick();
+    assert.strictEqual(posts.length, 1);
+    assert.match(posts[0].embeds[0].title, /derrotado/);
+  } finally {
+    global.fetch = realFetch;
+    delete process.env.DISCORD_WEBHOOK_URL;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('a 4xx from Discord drops the message instead of blocking the queue', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'feed-'));
   const file = path.join(dir, 'e.jsonl');

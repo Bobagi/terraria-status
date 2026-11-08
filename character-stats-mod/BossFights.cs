@@ -65,6 +65,7 @@ namespace StatusExport
 			public DateTime Start = DateTime.UtcNow;
 			public DateTime? EmptySince;
 			public int LifePct = 100;
+			public long MaxLife;
 			public readonly Dictionary<string, long> Damage = new Dictionary<string, long>();
 			public readonly Dictionary<string, int> Deaths = new Dictionary<string, int>();
 		}
@@ -122,12 +123,16 @@ namespace StatusExport
 			}
 		}
 
+		// Segments that share the dead NPC's life pool (worms: body and tail point at the head through
+		// realLife) are still active for a tick after the pool dies and then vanish without OnKill, so
+		// they do not count as "still alive". Without this, the Destroyer never ended as a kill.
 		private static bool OtherAlive(NPC dead, string group)
 		{
+			int pool = dead.realLife >= 0 ? dead.realLife : dead.whoAmI;
 			for (int i = 0; i < Main.maxNPCs; i++)
 			{
 				NPC n = Main.npc[i];
-				if (n == null || !n.active || n.life <= 0 || i == dead.whoAmI) continue;
+				if (n == null || !n.active || n.life <= 0 || i == dead.whoAmI || i == pool || n.realLife == pool) continue;
 				if (GroupOf(n, out _) == group) return true;
 			}
 			return false;
@@ -237,6 +242,7 @@ namespace StatusExport
 					{
 						f.EmptySince = null;
 						if (max > 0) f.LifePct = (int)Math.Min(100, 100 * life / max);
+						if (max > f.MaxLife) f.MaxLife = max;
 						continue;
 					}
 					if (f.EmptySince == null) { f.EmptySince = DateTime.UtcNow; continue; }
@@ -246,7 +252,16 @@ namespace StatusExport
 				{
 					Fight f = Fights[key];
 					Fights.Remove(key);
-					if (f.Damage.Count > 0 && (DateTime.UtcNow - f.Start).TotalSeconds >= 10) Emit("boss_wipe", f, f.LifePct);
+					if (f.Damage.Count == 0) continue;
+					// Safety net: the boss vanished without a recognised final kill, but the players took
+					// its whole life pool, so it died (a boss with parts whose last death we missed).
+					long dealt = f.Damage.Values.Sum();
+					if (f.MaxLife > 0 && dealt >= f.MaxLife * 99 / 100)
+					{
+						RecentlyEnded[key] = DateTime.UtcNow;
+						Emit("boss_kill", f, null);
+					}
+					else if ((DateTime.UtcNow - f.Start).TotalSeconds >= 10) Emit("boss_wipe", f, f.LifePct);
 				}
 			}
 		}
@@ -280,6 +295,34 @@ namespace StatusExport
 			};
 			if (lifePct.HasValue) fields["lifePct"] = lifePct.Value;
 			EventLog.Write(type, fields);
+			try { AnnounceInChat(type, f, lifePct); }
+			catch (Exception e) { ModContent.GetInstance<StatusExport>()?.Logger.Warn("BossFights chat: " + e.Message); }
+		}
+
+		private static readonly System.Globalization.CultureInfo PtBr = new System.Globalization.CultureInfo("pt-BR");
+		private static string Num(double v) => Math.Round(v).ToString("N0", PtBr);
+
+		// The same summary the Discord feed posts, short enough for the in-game chat.
+		private static void AnnounceInChat(string type, Fight f, int? lifePct)
+		{
+			if (Main.netMode != NetmodeID.Server) return;
+			double secs = Math.Max(1, (DateTime.UtcNow - f.Start).TotalSeconds);
+			long total = f.Damage.Values.Sum();
+			bool kill = type == "boss_kill";
+			string head = kill
+				? $"{f.Name} derrotado em {(int)secs}s · {Num(total)} de dano"
+				: $"{f.Name} venceu esta rodada ({(int)secs}s, ainda com {lifePct ?? 0}% da vida)";
+			var color = kill ? new Microsoft.Xna.Framework.Color(255, 200, 60) : new Microsoft.Xna.Framework.Color(220, 90, 70);
+			Terraria.Chat.ChatHelper.BroadcastChatMessage(Terraria.Localization.NetworkText.FromLiteral(head), color);
+			int rank = 0;
+			foreach (var kv in f.Damage.OrderByDescending(kv => kv.Value).Take(5))
+			{
+				rank++;
+				int pct = total > 0 ? (int)Math.Round(100.0 * kv.Value / total) : 0;
+				int deaths = f.Deaths.TryGetValue(kv.Key, out int d) ? d : 0;
+				string line = $"  {rank}. {kv.Key}: {Num(kv.Value)} ({Num(kv.Value / secs)} DPS, {pct}%)" + (deaths > 0 ? $" · {deaths} morte{(deaths > 1 ? "s" : "")}" : "");
+				Terraria.Chat.ChatHelper.BroadcastChatMessage(Terraria.Localization.NetworkText.FromLiteral(line), color);
+			}
 		}
 	}
 
