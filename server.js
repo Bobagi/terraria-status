@@ -67,7 +67,7 @@ const WORLD = {
 
 const SERVER = {
   host: process.env.SERVER_HOST || 'bobagi.space', // SEO/display only; players join by `ip` (domain is Cloudflare-proxied, HTTP only)
-  ip: process.env.SERVER_IP || '163.176.40.32',
+  ip: process.env.SERVER_IP || '150.230.85.106',
   port: parseInt(process.env.SERVER_PORT || '7777', 10),
   passwordProtected: true,
   steamAppId: 1281930,         // tModLoader on Steam (steam://run/<id> opens it)
