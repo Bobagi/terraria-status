@@ -438,8 +438,6 @@ body{
 .ask-msg .ask-status{display:inline-flex;align-items:center;gap:8px;color:var(--gray);font-size:.82rem}
 .ask-msg .ask-status::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--purple);animation:askPulse 1s ease-in-out infinite}
 @keyframes askPulse{50%{opacity:.25;transform:scale(.7)}}
-.ask-src{margin-top:.7em;padding-top:.5em;border-top:1px dashed #4b4a86;font-size:.78rem;color:var(--gray)}
-.ask-src a{display:inline-block;margin:2px 10px 2px 0}
 .ask-end{align-self:center;font-size:.78rem;color:var(--gray);text-align:center;padding:4px 10px}
 .ask-form{display:flex;flex-direction:column;gap:8px}
 .ask-form textarea{width:100%;resize:vertical;min-height:58px;max-height:220px;background:rgba(0,0,0,.28);border:2px solid #3a3560;border-radius:9px;

@@ -115,7 +115,7 @@ let snapshot = {
   world: Object.assign({ lastSaveAt: null, live: null, progress: null, tiles: null }, WORLD),
   server: SERVER,
   mods: MODS,
-  // "Pergunte ao Claude" box: on only when an API key is configured (see ask.js).
+  // "Pergunte ao Claude" box: on only when ASK_CLAUDE_BIN is set (see ask.js).
   ask: { enabled: false, maxQuestions: askLib.MAX_QUESTIONS, questionMax: askLib.QUESTION_MAX },
 };
 
@@ -527,18 +527,17 @@ function handleTime(req, res) {
 // day/night button. The answer streams back as server-sent events:
 //   event: status {kind}   the model is thinking / searching / reading a page
 //   event: delta  {text}   a piece of the answer
-//   event: done   {conversationId, used, max, closed, sources}
+//   event: done   {conversationId, used, max, closed, text}
 //   event: error  {error}
-// The model gets no tool that can reach this host (see ask.js): it only answers.
+// The session has web search only, nothing that can reach this host (see ask.js).
 const ASK_HTTP = { curta: 400, longa: 400, ritmo: 429, ocupado: 429, fila: 429, orcamento: 429 };
 let asker = null;
 function startAsk() {
-  const apiKey = askLib.readApiKey(__dirname);
-  if (!apiKey) return;
-  let Anthropic;
-  try { Anthropic = require('@anthropic-ai/sdk'); } catch (_) { console.log('ask: @anthropic-ai/sdk is not installed (npm install), box disabled'); return; }
+  const bin = process.env.ASK_CLAUDE_BIN;
+  if (!bin) return;
+  try { fs.accessSync(bin, fs.constants.X_OK); } catch (_) { console.log('ask: ASK_CLAUDE_BIN is not an executable, box disabled'); return; }
   asker = askLib.createAsk({
-    client: new Anthropic({ apiKey, baseURL: process.env.ANTHROPIC_BASE_URL || undefined, maxRetries: 1, timeout: 90000 }),
+    run: askLib.createCliRunner({ bin, cwd: path.join(__dirname, 'state', 'ask-cwd') }),
     systemPrompt: askLib.buildSystemPrompt({ worldName: WORLD.name, worldSize: WORLD.size, difficulty: WORLD.difficulty, maxPlayers: WORLD.maxPlayers, mods: MODS }),
     stateFile: path.join(__dirname, 'state', 'ask-usage.json'),
     limits: {
@@ -575,12 +574,12 @@ function handleAsk(req, res) {
       });
       begin();
       // Never the question or the answer: only sizes and cost reach the log.
-      console.log(`ask: ok ${Math.round((Date.now() - started) / 1000)}s pergunta ${out.used}/${out.max} ~$${out.costUsd.toFixed(4)} fontes=${out.sources.length}`);
-      send('done', { conversationId: out.conversationId, used: out.used, max: out.max, closed: out.closed, truncated: out.truncated, sources: out.sources });
+      console.log(`ask: ok ${Math.round((Date.now() - started) / 1000)}s pergunta ${out.used}/${out.max} ~$${out.costUsd.toFixed(4)}`);
+      send('done', { conversationId: out.conversationId, used: out.used, max: out.max, closed: out.closed, text: out.text });
       res.end();
     } catch (e) {
       const code = e instanceof askLib.AskError ? e.code : (abort.signal.aborted ? 'cancelado' : 'claude');
-      if (code === 'claude') console.log('ask: upstream error ' + (e && e.status ? e.status : '') + ' ' + String(e && e.name));
+      if (code !== 'cancelado' && !ASK_HTTP[code]) console.log('ask: falhou (' + code + ')');
       if (!open) return sendJson(res, ASK_HTTP[code] || 502, Object.assign({ error: code }, e.extra));
       send('error', Object.assign({ error: code }, e.extra));
       res.end();

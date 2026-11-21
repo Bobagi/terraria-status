@@ -2,7 +2,7 @@
 
 **English** · [Português](README.pt-BR.md)
 
-A **Node.js status page with no required dependencies** for a modded Terraria (**tModLoader**) dedicated
+A **zero-dependency Node.js status page** for a modded Terraria (**tModLoader**) dedicated
 server running in Docker. It shows, live and auto-refreshing:
 
 - 🟢 Server **online/offline**, uptime, restarts
@@ -265,23 +265,26 @@ the feed is simply off. Rebuild and redeploy the `StatusExport` mod (0.10+), the
 
 A question box on the page: players ask about the game, the server's mods or whether an idea is
 possible, and Claude answers (in Portuguese) with the server's live state as context and web search
-when it needs it. It is a **read-only analyst**: the request to the model carries only Anthropic's
-hosted web search and web fetch tools, so nothing it writes can reach the console, the files or
-Docker.
+when it needs it. Each question runs a headless **Claude Code** session on the host (`claude -p`,
+model `sonnet`), on the login of whoever owns the machine.
 
-- Model: `claude-sonnet-5-5`. Billed to **your** Anthropic Console API key.
+It is a **read-only analyst**. The session starts with only the `WebSearch` and `WebFetch` tools, no
+MCP servers, skills, hooks or `CLAUDE.md` (`--safe-mode`), in an empty working directory: no shell,
+no file access, nothing that reaches the game console. The app checks the tool list the session
+reports and kills it if anything else is there.
+
 - A conversation keeps its context for **5 questions**, then the server drops it and the next
-  question starts from an empty context.
+  question starts a new session with an empty context.
 - Gated by the world password (same lockout as the day/night button), one question at a time per
-  IP, 15 per hour per IP, 120 per day overall, and a **budget of US$ 2 per day and US$ 30 per
-  month** estimated from the usage the API reports (`ASK_DAILY_USD`, `ASK_MONTHLY_USD`). The spend
-  counter lives in `state/ask-usage.json`.
-- Questions and answers are never logged, only duration, question number and estimated cost.
+  IP, 15 per hour per IP, 120 per day overall, and a budget of US$ 4 per day and US$ 60 per month
+  from the cost each session reports (`ASK_DAILY_USD`, `ASK_MONTHLY_USD`; on a subscription that
+  cost is an API-price estimate, not a charge). The counter lives in `state/ask-usage.json`.
+- Questions and answers are never written to the app log, only duration, question number and cost.
 
-Setup: `npm install` (this is the only npm package the app uses, `@anthropic-ai/sdk`, and only this
-feature needs it), create an API key at <https://platform.claude.com/> and put it in
-`anthropic-api.key` next to `server.js` (git-ignored, `chmod 600`) or in `ANTHROPIC_API_KEY`, then
-restart the app. With no key or no package the box stays hidden and everything else works.
+Setup: install Claude Code on the host, log in as the user that runs this app, and set
+`ASK_CLAUDE_BIN` to the binary (for example `/home/you/.local/bin/claude`). Without it the box is
+drawn switched off and everything else works. Check Anthropic's terms for your kind of account
+before opening this to other people.
 
 ## World map (`/mapa/`)
 

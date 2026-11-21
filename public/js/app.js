@@ -614,9 +614,9 @@
     var KEY='tmodTimePass',convId=null,used=0,max=5,closed=false,busy=false,off=null;
     try{pass.value=localStorage.getItem(KEY)||'';}catch(e){}
     askSetEnabled=function(a){
-      // The box always shows; with no API key on the server it is drawn switched off.
+      // The box always shows; until the server turns it on it is drawn switched off.
       var isOff=!(a&&a.enabled);
-      if(isOff!==off){off=isOff;if(off)say('Ainda desligado: falta configurar a chave do Claude no servidor.');else say('');paint();}
+      if(isOff!==off){off=isOff;if(off)say('Ainda desligado: o dono ainda não ligou as perguntas no servidor.');else say('');paint();}
       if(a&&a.maxQuestions&&!used){max=a.maxQuestions;$('askMax').textContent=max;}
     };
     function say(t,cls){msg.textContent=t||'';msg.className='tc-msg'+(cls?' '+cls:'');}
@@ -710,13 +710,7 @@
         if(name==='status'){setStatus(STATUS[d.kind]||STATUS.think);}
         else if(name==='delta'){answer+=d.text;if(status)status.textContent='Escrevendo...';if(!raf)raf=requestAnimationFrame(draw);}
         else if(name==='done'){
-          ok=true;setStatus(null);if(raf){cancelAnimationFrame(raf);}markdown(box,answer||'(sem resposta)');
-          if(d.truncated)box.appendChild(el('p','ask-end','A resposta foi cortada por tamanho.'));
-          if(d.sources&&d.sources.length){
-            var src=el('div','ask-src','Fontes: ');
-            d.sources.forEach(function(s){if(/^https?:\/\//i.test(s.url))src.appendChild(link(s.url,s.title||s.url));});
-            box.appendChild(src);
-          }
+          ok=true;setStatus(null);if(raf){cancelAnimationFrame(raf);}if(!answer)answer=d.text||'';markdown(box,answer||'(sem resposta)');
           convId=d.conversationId||null;used=d.used;max=d.max;closed=!!d.closed;
           if(closed)log.appendChild(el('div','ask-end','Conversa encerrada: '+max+' de '+max+' perguntas. A próxima começa do zero, sem lembrar desta.'));
           try{localStorage.setItem(KEY,pass.value);}catch(e){}

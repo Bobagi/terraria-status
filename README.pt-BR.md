@@ -30,7 +30,7 @@ jogadores ──HTTPS──▶ nginx ──▶ Node (127.0.0.1:3063) ──docke
                                └─ polling: docker stats/inspect · inject "playing" · du
 ```
 
-- Um único `server.js` (nenhum pacote npm obrigatório) consulta o Docker em timers e mantém um snapshot
+- Um único `server.js` (zero pacotes npm) consulta o Docker em timers e mantém um snapshot
   JSON em cache; o navegador consulta `GET /api/status` a cada 5 s.
 - Os jogadores online vêm do console do servidor: `docker exec <container> inject "playing"`
   e a resposta é lida com `tmux capture-pane` (a imagem JACOBSMILE roda o console num tmux).
@@ -218,24 +218,26 @@ URL o feed fica desligado. Recompile e reinstale o mod `StatusExport` (0.10+) e 
 
 Uma caixa de perguntas na página: os jogadores perguntam sobre o jogo, os mods do servidor ou se uma
 ideia é possível, e o Claude responde com o estado ao vivo do servidor como contexto e pesquisa na
-internet quando precisa. Ele é um **analista somente leitura**: a requisição ao modelo leva apenas as
-ferramentas de busca e leitura de páginas hospedadas pela Anthropic, então nada do que ele escreve
-alcança o console, os arquivos ou o Docker.
+internet quando precisa. Cada pergunta roda uma sessão do **Claude Code** sem interface na máquina
+(`claude -p`, modelo `sonnet`), no login de quem é dono dela.
 
-- Modelo: `claude-sonnet-5-5`. Cobrado na **sua** chave de API do Console da Anthropic.
+Ele é um **analista somente leitura**. A sessão sobe só com as ferramentas `WebSearch` e `WebFetch`,
+sem servidores MCP, skills, hooks ou `CLAUDE.md` (`--safe-mode`), numa pasta vazia: sem shell, sem
+acesso a arquivo, nada que alcance o console do jogo. O app confere a lista de ferramentas que a
+sessão informa e mata a sessão se aparecer qualquer outra.
+
 - Uma conversa guarda o contexto por **5 perguntas**; depois o servidor descarta e a próxima
-  pergunta começa do zero.
+  pergunta abre uma sessão nova, do zero.
 - Protegido pela senha do mundo (mesmo bloqueio do botão de dia/noite), uma pergunta por vez por
-  IP, 15 por hora por IP, 120 por dia no total e um **orçamento de US$ 2 por dia e US$ 30 por mês**
-  estimado pelo consumo que a API informa (`ASK_DAILY_USD`, `ASK_MONTHLY_USD`). O contador fica em
-  `state/ask-usage.json`.
-- Perguntas e respostas nunca vão para o log, só duração, número da pergunta e custo estimado.
+  IP, 15 por hora por IP, 120 por dia no total e um orçamento de US$ 4 por dia e US$ 60 por mês
+  pelo custo que cada sessão informa (`ASK_DAILY_USD`, `ASK_MONTHLY_USD`; em assinatura esse custo
+  é uma estimativa a preço de API, não uma cobrança). O contador fica em `state/ask-usage.json`.
+- Perguntas e respostas nunca vão para o log do app, só duração, número da pergunta e custo.
 
-Configuração: `npm install` (é o único pacote npm do app, `@anthropic-ai/sdk`, e só esta função
-precisa dele), crie uma chave de API em <https://platform.claude.com/> e coloque em
-`anthropic-api.key` ao lado do `server.js` (ignorado pelo git, `chmod 600`) ou em
-`ANTHROPIC_API_KEY`, e reinicie o app. Sem chave ou sem o pacote a caixa fica escondida e o resto
-funciona igual.
+Configuração: instale o Claude Code na máquina, faça login com o usuário que roda este app e aponte
+`ASK_CLAUDE_BIN` para o binário (por exemplo `/home/voce/.local/bin/claude`). Sem isso a caixa
+aparece desligada e o resto funciona igual. Confira os termos da Anthropic para o seu tipo de conta
+antes de abrir isso para outras pessoas.
 
 ## Mapa do mundo (`/mapa/`)
 

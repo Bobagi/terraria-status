@@ -4,97 +4,84 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { createAsk, buildServerState, buildSystemPrompt, collectSources, costUsd, AskError, MAX_QUESTIONS, MODEL, TOOLS } = require('../ask');
+const { EventEmitter } = require('node:events');
+const { createAsk, createCliRunner, buildServerState, buildSystemPrompt, AskError, MAX_QUESTIONS, MODEL, ALLOWED_TOOLS } = require('../ask');
 
-// A stand-in for the SDK client: records every request and replays scripted replies.
-function fakeClient(replies) {
+// A stand-in for the session runner: records every call and replays scripted replies.
+function fakeRun(replies) {
   const calls = [];
-  const next = () => (replies.length > 1 ? replies.shift() : replies[0]);
-  return {
-    calls,
-    beta: { messages: { stream(params) {
-      calls.push(JSON.parse(JSON.stringify(params)));
-      const reply = next();
-      if (reply instanceof Error) throw reply;
-      return {
-        async *[Symbol.asyncIterator]() { for (const e of reply.events || []) yield e; },
-        finalMessage: async () => reply.message,
-      };
-    } } },
+  const totals = new Map();   // sessionId -> cumulative cost, like `claude --resume` reports
+  const run = async (opts) => {
+    calls.push({ sessionId: opts.sessionId, resume: opts.resume, prompt: opts.prompt, systemPrompt: opts.systemPrompt });
+    const reply = replies.length > 1 ? replies.shift() : replies[0];
+    if (reply instanceof Error) throw reply;
+    for (const e of reply.events || []) opts.onEvent(e);
+    const total = (totals.get(opts.sessionId) || 0) + (reply.cost == null ? 0.01 : reply.cost);
+    totals.set(opts.sessionId, total);
+    return { text: reply.text, totalCostUsd: total };
   };
+  run.calls = calls;
+  return run;
 }
-const msg = (text, extra) => ({ message: Object.assign({
-  stop_reason: 'end_turn', content: [{ type: 'text', text }],
-  usage: { input_tokens: 1000, output_tokens: 500 },
-}, extra), events: [
-  { type: 'content_block_start', content_block: { type: 'text', text: '' } },
-  { type: 'content_block_delta', delta: { type: 'text_delta', text } },
-] });
+const msg = (text, cost) => ({ text, cost, events: [{ type: 'delta', text }] });
 
 function setup(replies, opts = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ask-'));
   const clock = { t: Date.UTC(2026, 10, 20, 12) };
-  const client = fakeClient(replies);
+  const run = fakeRun(replies);
   const stateFile = path.join(dir, 'state', 'ask-usage.json');
-  const make = () => createAsk({ client, systemPrompt: 'SYS', stateFile, limits: opts.limits, now: () => clock.t });
-  return { client, clock, stateFile, make, asker: make() };
+  const make = () => createAsk({ run, systemPrompt: 'SYS', stateFile, limits: opts.limits, now: () => clock.t });
+  return { run, clock, stateFile, make, asker: make() };
 }
 const q = (asker, over) => asker.ask(Object.assign({ ip: '1.1.1.1', question: 'como faço a Zenith?', onEvent() {} }, over));
 const code = (c) => (e) => e instanceof AskError && e.code === c;
 
-test('a conversation keeps its context for 5 questions, then is dropped', async () => {
-  const { asker, client } = setup([msg('resposta')]);
+test('a conversation keeps one session for 5 questions, then is dropped', async () => {
+  const { asker, run } = setup([msg('resposta')]);
   let id = null;
   for (let n = 1; n <= MAX_QUESTIONS; n++) {
     const out = await q(asker, { conversationId: id, question: 'pergunta ' + n });
     assert.strictEqual(out.used, n);
     assert.strictEqual(out.closed, n === MAX_QUESTIONS);
-    // each request carries every earlier turn of this conversation
-    assert.strictEqual(client.calls[n - 1].messages.length, 2 * n - 1);
+    assert.strictEqual(run.calls[n - 1].resume, n > 1);                       // first creates, the rest resume
+    assert.strictEqual(run.calls[n - 1].sessionId, run.calls[0].sessionId);   // the same session throughout
     if (n < MAX_QUESTIONS) id = out.conversationId; else assert.strictEqual(out.conversationId, null);
   }
-  // the 6th question with the old id gets a new, empty conversation
+  // the 6th question with the old id gets a brand new session
   const sixth = await q(asker, { conversationId: id });
   assert.strictEqual(sixth.used, 1);
-  assert.strictEqual(client.calls[MAX_QUESTIONS].messages.length, 1);
+  assert.strictEqual(run.calls[MAX_QUESTIONS].resume, false);
+  assert.notStrictEqual(run.calls[MAX_QUESTIONS].sessionId, run.calls[0].sessionId);
   assert.notStrictEqual(sixth.conversationId, id);
   assert.strictEqual(asker.stats().conversations, 1);
 });
 
-test('an unknown conversation id cannot extend or join a context', async () => {
-  const { asker, client } = setup([msg('ok')]);
-  const out = await q(asker, { conversationId: 'f'.repeat(32) });
+test('an unknown conversation id cannot resume or join a session', async () => {
+  const { asker, run } = setup([msg('ok')]);
+  const guess = '0f8fad5b-d9cb-469f-a165-70867728950e';
+  const out = await q(asker, { conversationId: guess });
   assert.strictEqual(out.used, 1);
-  assert.strictEqual(client.calls[0].messages.length, 1);
+  assert.strictEqual(run.calls[0].resume, false);
+  assert.notStrictEqual(run.calls[0].sessionId, guess);     // a client value is never used as the session id
+  assert.notStrictEqual(out.conversationId, run.calls[0].sessionId);   // and the session id is never sent out
+  assert.match(run.calls[0].sessionId, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 });
 
-test('the request has only hosted web tools, the sonnet model and the frozen system prompt', async () => {
-  const { asker, client } = setup([msg('ok')]);
-  await q(asker, { serverState: 'Hardmode: sim' });
-  const call = client.calls[0];
-  assert.strictEqual(call.model, MODEL);
-  assert.strictEqual(MODEL, 'claude-sonnet-5-5');
-  assert.strictEqual(call.system, 'SYS');
-  assert.deepStrictEqual(call.tools, TOOLS);
-  // nothing the model calls runs on this host: every tool is an Anthropic-hosted web tool
-  assert.deepStrictEqual(call.tools.map((t) => t.name).sort(), ['web_fetch', 'web_search']);
-  assert.ok(call.tools.every((t) => /^web_(search|fetch)_\d+$/.test(t.type) && !('input_schema' in t)));
-  assert.match(call.messages[0].content, /Hardmode: sim[\s\S]*como faço a Zenith\?/);
-});
-
-test('the server state is sent once per conversation, not on every question', async () => {
-  const { asker, client } = setup([msg('ok')]);
-  const a = await q(asker, { serverState: 'ESTADO' });
-  await q(asker, { serverState: 'ESTADO', conversationId: a.conversationId, question: 'e depois?' });
-  assert.strictEqual(client.calls[1].messages[2].content, 'e depois?');
+test('the server state is sent once per conversation, with the frozen system prompt', async () => {
+  const { asker, run } = setup([msg('ok')]);
+  const a = await q(asker, { serverState: 'Hardmode: sim' });
+  await q(asker, { serverState: 'Hardmode: sim', conversationId: a.conversationId, question: 'e depois?' });
+  assert.match(run.calls[0].prompt, /Hardmode: sim[\s\S]*como faço a Zenith\?/);
+  assert.strictEqual(run.calls[1].prompt, 'e depois?');
+  assert.strictEqual(run.calls[0].systemPrompt, 'SYS');
 });
 
 test('rejects empty, short and oversized questions before spending anything', async () => {
-  const { asker, client } = setup([msg('ok')]);
+  const { asker, run } = setup([msg('ok')]);
   await assert.rejects(q(asker, { question: '  a ' }), code('curta'));
   await assert.rejects(q(asker, { question: 42 }), code('curta'));
   await assert.rejects(q(asker, { question: 'x'.repeat(801) }), code('longa'));
-  assert.strictEqual(client.calls.length, 0);
+  assert.strictEqual(run.calls.length, 0);
   assert.strictEqual(asker.stats().dayCount, 0);
 });
 
@@ -108,8 +95,7 @@ test('per-IP hourly limit, and the window slides', async () => {
 });
 
 test('daily budget stops new questions and survives a restart', async () => {
-  const pricey = msg('ok', { usage: { input_tokens: 400000, output_tokens: 20000 } }); // $1.00
-  const { asker, make, clock, stateFile } = setup([pricey], { limits: { dailyUsd: 2 } });
+  const { asker, make, clock, stateFile } = setup([msg('ok', 1)], { limits: { dailyUsd: 2 } });
   await q(asker); await q(asker);
   await assert.rejects(q(asker), code('orcamento'));
   assert.ok(Math.abs(JSON.parse(fs.readFileSync(stateFile, 'utf8')).dayUsd - 2) < 1e-9);
@@ -118,73 +104,156 @@ test('daily budget stops new questions and survives a restart', async () => {
   await q(make());                                       // a new day, a new budget
 });
 
+test('a resumed session reports its running total: only the difference is charged', async () => {
+  const { asker } = setup([msg('ok', 0.1)]);
+  const a = await q(asker);
+  const b = await q(asker, { conversationId: a.conversationId });
+  assert.ok(Math.abs(a.costUsd - 0.1) < 1e-9 && Math.abs(b.costUsd - 0.1) < 1e-9);
+  assert.ok(Math.abs(asker.stats().dayUsd - 0.2) < 1e-9);
+});
+
 test('monthly budget holds across days', async () => {
-  const pricey = msg('ok', { usage: { input_tokens: 500000, output_tokens: 0 } }); // $1.00
-  const { asker, clock } = setup([pricey], { limits: { dailyUsd: 1, monthlyUsd: 2 } });
+  const { asker, clock } = setup([msg('ok', 1)], { limits: { dailyUsd: 1, monthlyUsd: 2 } });
   await q(asker); clock.t += 24 * 3600000;
   await q(asker); clock.t += 24 * 3600000;
   await assert.rejects(q(asker), (e) => code('orcamento')(e) && e.extra.scope === 'mes');
 });
 
-test('the daily question cap counts failed calls too', async () => {
-  const { asker } = setup([new Error('upstream down')], { limits: { globalPerDay: 2, perIpPerHour: 99 } });
-  await assert.rejects(q(asker), /upstream down/);
-  await assert.rejects(q(asker), /upstream down/);
+test('the daily question cap counts failed runs too, and each charges the budget', async () => {
+  const { asker } = setup([new Error('session died')], { limits: { globalPerDay: 2, perIpPerHour: 99 } });
+  await assert.rejects(q(asker), /session died/);
+  await assert.rejects(q(asker), /session died/);
   await assert.rejects(q(asker), code('orcamento'));
   assert.strictEqual(asker.stats().conversations, 0);   // failed first questions leave nothing behind
+  assert.ok(Math.abs(asker.stats().dayUsd - 0.06) < 1e-9);
 });
 
-test('one question at a time per IP', async () => {
+test('one question at a time per IP and per conversation', async () => {
   let release;
   const gate = new Promise((r) => { release = r; });
-  const slow = { message: msg('ok').message, events: [] };
-  const { client, asker } = setup([slow]);
-  const orig = client.beta.messages.stream;
-  client.beta.messages.stream = (p) => { const s = orig(p); const fm = s.finalMessage; s.finalMessage = async () => { await gate; return fm(); }; return s; };
-  const first = q(asker);
-  await assert.rejects(q(asker), code('ocupado'));
+  const { asker, run } = setup([msg('ok')]);
+  const slow = createAsk({ run: async (o) => { await gate; return run(o); }, systemPrompt: 'SYS', now: Date.now });
+  const first = q(slow);
+  await assert.rejects(q(slow), code('ocupado'));
   release();
-  await first;
-  await q(asker);
+  const a = await first;
+  await q(slow, { conversationId: a.conversationId });
+  assert.ok(asker);
 });
 
 test('a failed question does not use up one of the 5', async () => {
-  const { asker, client } = setup([msg('um'), new Error('boom'), msg('dois')]);
+  const { asker, run } = setup([msg('um'), new Error('boom'), msg('dois')]);
   const a = await q(asker);
   await assert.rejects(q(asker, { conversationId: a.conversationId }), /boom/);
   const b = await q(asker, { conversationId: a.conversationId });
   assert.strictEqual(b.used, 2);
-  assert.strictEqual(client.calls[2].messages.length, 3);   // the failed turn left no trace in the history
+  assert.strictEqual(run.calls[2].sessionId, run.calls[0].sessionId);
 });
 
-test('pause_turn is resumed with the paused content appended, and costs add up', async () => {
-  const paused = { message: { stop_reason: 'pause_turn', content: [{ type: 'server_tool_use', id: 's1', name: 'web_search', input: {} }], usage: { input_tokens: 1e6, output_tokens: 0 } },
-    events: [{ type: 'content_block_start', content_block: { type: 'server_tool_use', name: 'web_search' } }] };
-  const { asker, client } = setup([paused, msg('fim', { usage: { input_tokens: 0, output_tokens: 1e5, server_tool_use: { web_search_requests: 2 } } })]);
-  const seen = [];
-  const out = await q(asker, { onEvent: (e) => seen.push(e) });
-  assert.strictEqual(client.calls.length, 2);
-  assert.deepStrictEqual(client.calls[1].messages.map((m) => m.role), ['user', 'assistant']);
-  assert.deepStrictEqual(seen, [{ type: 'status', kind: 'search' }, { type: 'delta', text: 'fim' }]);
-  assert.ok(Math.abs(out.costUsd - (2 + 1 + 0.02)) < 1e-9);
+// ---- the session runner, against a fake `claude` process ----
+function fakeSpawn(lines, { exitAfter = true } = {}) {
+  const seen = {};
+  const impl = (bin, args, options) => {
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter(); child.stdout.setEncoding = () => {};
+    let stdin = '';
+    child.stdin = { on() {}, end(text) { stdin = text; seen.stdin = stdin; } };
+    child.kill = () => { seen.killed = true; setImmediate(() => child.emit('close', 143)); };
+    Object.assign(seen, { bin, args, options });
+    setImmediate(() => {
+      // deliberately split mid-line: the runner must reassemble lines
+      const blob = lines.map((l) => JSON.stringify(l)).join('\n') + '\n';
+      child.stdout.emit('data', blob.slice(0, 25)); child.stdout.emit('data', blob.slice(25));
+      if (exitAfter && !seen.killed) child.emit('close', 0);
+    });
+    return child;
+  };
+  return { impl, seen };
+}
+const init = (tools, mcp) => ({ type: 'system', subtype: 'init', tools, mcp_servers: mcp || [] });
+const ev = (event) => ({ type: 'stream_event', event });
+const runOnce = (spawnImpl, over) => {
+  const events = [];
+  const run = createCliRunner({ bin: '/x/claude', cwd: fs.mkdtempSync(path.join(os.tmpdir(), 'askcwd-')), spawnImpl });
+  return run(Object.assign({ sessionId: 'S1', resume: false, prompt: 'pergunta', systemPrompt: 'SYS', onEvent: (e) => events.push(e) }, over)).then((out) => ({ out, events }));
+};
+
+test('runner: the session gets only the web tools, safe mode, a bare environment and the prompt on stdin', async () => {
+  const { impl, seen } = fakeSpawn([init(['WebFetch', 'WebSearch']), { type: 'result', subtype: 'success', is_error: false, result: 'oi', total_cost_usd: 0.04 }]);
+  process.env.TMOD_SECRET_FOR_TEST = 'nope';
+  const { out } = await runOnce(impl);
+  delete process.env.TMOD_SECRET_FOR_TEST;
+  assert.deepStrictEqual(out, { text: 'oi', totalCostUsd: 0.04 });
+  const arg = (name) => seen.args[seen.args.indexOf(name) + 1];
+  assert.strictEqual(arg('--tools'), 'WebSearch,WebFetch');
+  assert.strictEqual(arg('--allowedTools'), 'WebSearch,WebFetch');
+  assert.strictEqual(arg('--model'), MODEL);
+  assert.strictEqual(MODEL, 'sonnet');
+  assert.strictEqual(arg('--permission-mode'), 'dontAsk');
+  assert.strictEqual(arg('--session-id'), 'S1');
+  for (const flag of ['-p', '--safe-mode', '--strict-mcp-config', '--disable-slash-commands']) assert.ok(seen.args.includes(flag), flag);
+  for (const bad of ['--dangerously-skip-permissions', '--allow-dangerously-skip-permissions', '--add-dir', '--mcp-config', '--resume']) assert.ok(!seen.args.includes(bad), bad);
+  assert.ok(!seen.args.includes('pergunta'));               // the player's text is never an argument
+  assert.strictEqual(seen.stdin, 'pergunta');
+  assert.deepStrictEqual(Object.keys(seen.options.env).sort(), ['HOME', 'LANG', 'PATH', 'USER']);
+  assert.deepStrictEqual(ALLOWED_TOOLS, ['WebSearch', 'WebFetch']);
 });
 
-test('a refusal is an error and is not stored as an answer', async () => {
-  const { asker } = setup([msg('', { stop_reason: 'refusal', content: [] })]);
-  await assert.rejects(q(asker), code('recusa'));
-  assert.strictEqual(asker.stats().conversations, 0);
+test('runner: a resumed question uses --resume with the same locks', async () => {
+  const { impl, seen } = fakeSpawn([init(['WebSearch']), { type: 'result', subtype: 'success', is_error: false, result: 'x', total_cost_usd: 1 }]);
+  await runOnce(impl, { resume: true });
+  assert.strictEqual(seen.args[seen.args.indexOf('--resume') + 1], 'S1');
+  assert.ok(!seen.args.includes('--session-id') && seen.args.includes('--safe-mode') && seen.args.includes('--tools'));
 });
 
-test('sources: only http(s) citation URLs, deduplicated and bounded', () => {
-  const cite = (url, title) => ({ type: 'web_search_result_location', url, title });
-  const out = collectSources([
-    { type: 'text', text: 'a', citations: [cite('https://terraria.wiki.gg/x', 'Wiki'), cite('javascript:alert(1)', 'bad'), cite('https://terraria.wiki.gg/x', 'dup')] },
-    { type: 'text', text: 'b', citations: Array.from({ length: 20 }, (_, i) => cite('https://e.x/' + i, 't'.repeat(500))) },
-    { type: 'thinking', thinking: '' },
+for (const [name, first] of [
+  ['a shell tool', init(['WebSearch', 'Bash'])],
+  ['a file tool', init(['Read', 'WebFetch'])],
+  ['an MCP server', init(['WebSearch'], [{ name: 'x', status: 'connected' }])],
+  ['no tool list at all', { type: 'system', subtype: 'init' }],
+]) {
+  test('runner: kills a session that reports ' + name, async () => {
+    const { impl, seen } = fakeSpawn([first, ev({ type: 'content_block_delta', delta: { type: 'text_delta', text: 'vazou' } }), { type: 'result', subtype: 'success', is_error: false, result: 'vazou', total_cost_usd: 0 }], { exitAfter: false });
+    const events = [];
+    const run = createCliRunner({ bin: '/x/claude', cwd: os.tmpdir(), spawnImpl: impl });
+    await assert.rejects(run({ sessionId: 'S', prompt: 'p', systemPrompt: 's', onEvent: (e) => events.push(e) }), code('ferramentas'));
+    assert.strictEqual(seen.killed, true);
+    assert.deepStrictEqual(events, []);                      // nothing it wrote reached the player
+  });
+}
+
+test('runner: streams text and status, and separates the text of two turns', async () => {
+  const { impl } = fakeSpawn([
+    init(['WebSearch', 'WebFetch']),
+    ev({ type: 'message_start' }), ev({ type: 'content_block_start', content_block: { type: 'thinking' } }),
+    ev({ type: 'content_block_delta', delta: { type: 'text_delta', text: 'Vou pesquisar.' } }),
+    ev({ type: 'content_block_start', content_block: { type: 'tool_use', name: 'WebSearch' } }),
+    ev({ type: 'content_block_delta', delta: { type: 'input_json_delta', partial_json: '{"q' } }),
+    ev({ type: 'message_start' }), ev({ type: 'content_block_start', content_block: { type: 'tool_use', name: 'WebFetch' } }),
+    ev({ type: 'message_start' }), ev({ type: 'content_block_delta', delta: { type: 'text_delta', text: 'Resposta.' } }),
+    { type: 'result', subtype: 'success', is_error: false, result: 'Resposta.', total_cost_usd: 0.05 },
   ]);
-  assert.strictEqual(out.length, 6);
-  assert.deepStrictEqual(out[0], { url: 'https://terraria.wiki.gg/x', title: 'Wiki' });
-  assert.ok(out.every((s) => /^https:/.test(s.url) && s.title.length <= 120));
+  const { events } = await runOnce(impl);
+  assert.deepStrictEqual(events, [
+    { type: 'status', kind: 'think' }, { type: 'delta', text: 'Vou pesquisar.' }, { type: 'status', kind: 'search' },
+    { type: 'status', kind: 'fetch' }, { type: 'delta', text: '\n\n' }, { type: 'delta', text: 'Resposta.' },
+  ]);
+});
+
+test('runner: an error result or a dead process is a failure that still carries the cost', async () => {
+  const bad = fakeSpawn([init(['WebSearch']), { type: 'result', subtype: 'error_during_execution', is_error: true, total_cost_usd: 0.2 }]);
+  await assert.rejects(runOnce(bad.impl), (e) => code('claude')(e) && e.totalCostUsd === 0.2);
+  const dead = fakeSpawn([init(['WebSearch'])]);
+  await assert.rejects(runOnce(dead.impl), (e) => code('claude')(e) && e.totalCostUsd === null);
+});
+
+test('runner: the client leaving kills the session', async () => {
+  const { impl, seen } = fakeSpawn([init(['WebSearch'])], { exitAfter: false });
+  const ac = new AbortController();
+  const p = runOnce(impl, { signal: ac.signal });
+  setTimeout(() => ac.abort(), 20);
+  await assert.rejects(p, code('cancelado'));
+  assert.strictEqual(seen.killed, true);
 });
 
 test('server state: player names are stripped and nothing but the known fields leaves', () => {
@@ -202,25 +271,11 @@ test('server state: player names are stripped and nothing but the known fields l
   assert.strictEqual(buildServerState(null), '');
 });
 
-test('the system prompt never changes between calls (prompt cache) and says it is read-only', () => {
+test('the system prompt never changes between calls and says it is read-only', () => {
   const args = { worldName: 'Hyperborea', worldSize: 'Small', difficulty: 'Expert', maxPlayers: 8, mods: [{ name: 'Magic Storage', desc: 'baú' }] };
   const a = buildSystemPrompt(args);
   assert.strictEqual(a, buildSystemPrompt(args));
   assert.match(a, /não executa nada/);
   assert.match(a, /Magic Storage: baú/);
   assert.doesNotMatch(a, /\d{4}-\d{2}-\d{2}/);   // no date or other per-request value
-});
-
-test('cost estimate follows the price table', () => {
-  assert.strictEqual(costUsd(null), 0);
-  const usd = costUsd({ input_tokens: 1e6, output_tokens: 1e6, cache_read_input_tokens: 1e6, cache_creation_input_tokens: 1e6, server_tool_use: { web_search_requests: 10 } });
-  assert.ok(Math.abs(usd - (2 + 10 + 0.1 + 2.5 + 0.1)) < 1e-9);
-});
-
-test('a call that dies without reporting usage still charges the budget', async () => {
-  const { asker } = setup([new Error('cut')], { limits: { dailyUsd: 0.05, perIpPerHour: 99 } });
-  await assert.rejects(q(asker), /cut/);
-  await assert.rejects(q(asker), /cut/);
-  await assert.rejects(q(asker), code('orcamento'));
-  assert.ok(Math.abs(asker.stats().dayUsd - 0.06) < 1e-9);
 });
