@@ -462,6 +462,7 @@ body{
 .ask-new:hover,.ask-send:hover{transform:translateY(-1px)}
 .ask-new:active,.ask-send:active{transform:translateY(2px);box-shadow:inset 0 2px 0 rgba(255,255,255,.1),0 1px 0 rgba(0,0,0,.4)}
 .ask-send:disabled{opacity:.55;cursor:wait;transform:none}
+.ask-row .tc-pass:has(input:disabled){opacity:.55}
 .ask-new:focus-visible,.ask-send:focus-visible{outline:2px solid #fff;outline-offset:2px}
 .ask-form .tc-msg{margin:0;font-size:.75rem;min-height:1.1em;color:var(--gray);text-shadow:var(--shadow)}
 .ask-form .tc-msg.err{color:var(--red)}

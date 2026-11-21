@@ -611,17 +611,19 @@
     var panel=$('askPanel'),form=$('askForm'),log=$('askLog'),text=$('askText'),pass=$('askPass'),
         msg=$('askMsg'),count=$('askCount'),send=$('askSend'),fresh=$('askNew');
     if(!panel)return;
-    var KEY='tmodTimePass',convId=null,used=0,max=5,closed=false,busy=false;
+    var KEY='tmodTimePass',convId=null,used=0,max=5,closed=false,busy=false,off=null;
     try{pass.value=localStorage.getItem(KEY)||'';}catch(e){}
     askSetEnabled=function(a){
-      var on=!!(a&&a.enabled);if(panel.hidden===on)panel.hidden=!on;
+      // The box always shows; with no API key on the server it is drawn switched off.
+      var isOff=!(a&&a.enabled);
+      if(isOff!==off){off=isOff;if(off)say('Ainda desligado: falta configurar a chave do Claude no servidor.');else say('');paint();}
       if(a&&a.maxQuestions&&!used){max=a.maxQuestions;$('askMax').textContent=max;}
     };
     function say(t,cls){msg.textContent=t||'';msg.className='tc-msg'+(cls?' '+cls:'');}
     function paint(){
       count.textContent=used?('Pergunta '+used+' de '+max):'';
       fresh.hidden=!used;
-      text.disabled=busy||closed;send.disabled=busy||closed;
+      text.disabled=busy||closed||!!off;send.disabled=busy||closed||!!off;pass.disabled=!!off;
       text.placeholder=closed?'Conversa encerrada. Clique em "Nova conversa" para perguntar de novo.':text.getAttribute('data-ph');
     }
     text.setAttribute('data-ph',text.placeholder);
@@ -691,7 +693,7 @@
     form.addEventListener('submit',function(ev){
       ev.preventDefault();
       var q=text.value.trim();
-      if(busy||closed||!q)return;
+      if(busy||closed||off||!q)return;
       busy=true;say('');paint();
       var qBox=bubble('q');qBox.textContent=q;
       var box=bubble('a'),status=el('span','ask-status',STATUS.think),answer='',raf=0,ok=false;
