@@ -229,6 +229,10 @@ sessão informa e mata a sessão se aparecer qualquer outra.
 
 - Uma conversa guarda o contexto por **5 perguntas**; depois o servidor descarta e a próxima
   pergunta abre uma sessão nova, do zero.
+- **Nenhuma sessão fica aberta**: o processo sai depois de cada resposta; a conversa fecha após 15
+  minutos parada, no limite de 5 perguntas ou quando o jogador clica em "Nova conversa", e a
+  transcrição é apagada. `state/ask-sessions.json` lista o que está aberto agora (sem o texto das
+  perguntas) e o log do app registra cada abertura e fechamento. Reiniciar apaga o que sobrar.
 - Protegido pela senha do mundo (mesmo bloqueio do botão de dia/noite), uma pergunta por vez por
   IP, 15 por hora por IP, 120 por dia no total e um orçamento de US$ 4 por dia e US$ 60 por mês
   pelo custo que cada sessão informa (`ASK_DAILY_USD`, `ASK_MONTHLY_USD`; em assinatura esse custo

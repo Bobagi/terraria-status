@@ -684,7 +684,11 @@
       return ERR[j.error]||'Não deu para falar com o servidor. Tente de novo.';
     }
 
-    function reset(){convId=null;used=0;closed=false;log.textContent='';say('');paint();text.focus();}
+    function reset(){
+      // tell the server to end the old session now instead of letting it expire
+      if(convId){fetch('/api/ask',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({password:pass.value,close:convId})}).catch(function(){});}
+      convId=null;used=0;closed=false;log.textContent='';say('');paint();text.focus();
+    }
     fresh.addEventListener('click',function(){if(!busy)reset();});
     text.addEventListener('keydown',function(ev){
       if(ev.key==='Enter'&&!ev.shiftKey&&!ev.isComposing){ev.preventDefault();if(form.requestSubmit)form.requestSubmit();else send.click();}

@@ -523,7 +523,7 @@ function handleTime(req, res) {
 }
 
 // ---- "Pergunte ao Claude" ----------------------------------------------------
-// POST /api/ask {"password","question","conversationId"?}. Same password gate as the
+// POST /api/ask {"password","question","conversationId"?} or {"password","close":id}. Same password gate as the
 // day/night button. The answer streams back as server-sent events:
 //   event: status {kind}   the model is thinking / searching / reading a page
 //   event: delta  {text}   a piece of the answer
@@ -531,20 +531,28 @@ function handleTime(req, res) {
 //   event: error  {error}
 // The session has web search only, nothing that can reach this host (see ask.js).
 const ASK_HTTP = { curta: 400, longa: 400, ritmo: 429, ocupado: 429, fila: 429, orcamento: 429 };
-let asker = null;
+let asker = null, askRun = null;
 function startAsk() {
   const bin = process.env.ASK_CLAUDE_BIN;
   if (!bin) return;
   try { fs.accessSync(bin, fs.constants.X_OK); } catch (_) { console.log('ask: ASK_CLAUDE_BIN is not an executable, box disabled'); return; }
+  askRun = askLib.createCliRunner({ bin, cwd: path.join(__dirname, 'state', 'ask-cwd') });
+  const stale = askRun.forgetAll();   // conversations do not survive a restart: drop their transcripts
+  if (stale) console.log('ask: ' + stale + ' transcricao(oes) antiga(s) apagada(s)');
   asker = askLib.createAsk({
-    run: askLib.createCliRunner({ bin, cwd: path.join(__dirname, 'state', 'ask-cwd') }),
+    run: askRun,
     systemPrompt: askLib.buildSystemPrompt({ worldName: WORLD.name, worldSize: WORLD.size, difficulty: WORLD.difficulty, maxPlayers: WORLD.maxPlayers, mods: MODS }),
     stateFile: path.join(__dirname, 'state', 'ask-usage.json'),
+    sessionsFile: path.join(__dirname, 'state', 'ask-sessions.json'),
+    log: (line) => console.log('ask: ' + line),
     limits: {
       dailyUsd: parseFloat(process.env.ASK_DAILY_USD || '') || undefined,
       monthlyUsd: parseFloat(process.env.ASK_MONTHLY_USD || '') || undefined,
     },
   });
+  asker.start();
+  // A restart or shutdown must not leave session processes behind.
+  for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { askRun.killAll(); process.exit(0); });
   snapshot.ask.enabled = true;
 }
 
@@ -560,6 +568,8 @@ function freshSnapshot() {
 function handleAsk(req, res) {
   withPassword(req, res, 4096, async (data, ip) => {
     if (!asker) return sendJson(res, 503, { error: 'desligado' });
+    // {"close": id}: the player started a new conversation, end the old session now.
+    if (typeof data.close === 'string') return sendJson(res, 200, { ok: true, closed: !!asker.close(data.close.slice(0, 64)) });
     const abort = new AbortController();
     let open = false;
     const send = (event, obj) => { if (open && !res.writableEnded) res.write('event: ' + event + '\ndata: ' + JSON.stringify(obj) + '\n\n'); };

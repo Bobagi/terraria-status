@@ -309,3 +309,114 @@ test('server state: each online character brings its gear and inventory, as clea
   assert.doesNotMatch(text, /Personagem SemMod/);
   assert.ok(text.split('\n').every((l) => !/^SYSTEM/.test(l)));
 });
+
+// ---- session lifecycle: nothing stays open, and the owner can see what is ----
+function lifecycle(replies, opts = {}) {
+  const base = setup(replies, opts);
+  const forgotten = [], lines = [];
+  base.run.forget = (sid) => forgotten.push(sid);
+  base.run.pids = () => [];
+  const sessionsFile = path.join(path.dirname(base.stateFile), 'ask-sessions.json');
+  const asker = createAsk({ run: base.run, systemPrompt: 'SYS', stateFile: base.stateFile, sessionsFile, limits: opts.limits, log: (l) => lines.push(l), now: () => base.clock.t });
+  const file = () => JSON.parse(fs.readFileSync(sessionsFile, 'utf8'));
+  return Object.assign(base, { asker, forgotten, lines, file });
+}
+
+test('an idle conversation is closed by the sweep alone, and its transcript deleted', async () => {
+  const { asker, clock, run, forgotten, file } = lifecycle([msg('ok')]);
+  const a = await q(asker);
+  assert.strictEqual(file().open.length, 1);
+  clock.t += 14 * 60 * 1000; asker.sweep();
+  assert.strictEqual(asker.sessions().length, 1);              // still inside the 15 minutes
+  clock.t += 2 * 60 * 1000; asker.sweep();                     // nobody asked anything: the timer does it
+  assert.strictEqual(asker.sessions().length, 0);
+  assert.deepStrictEqual(forgotten, [run.calls[0].sessionId]);
+  assert.strictEqual(file().open.length, 0);
+  const again = await q(asker, { conversationId: a.conversationId });   // the old id is dead
+  assert.strictEqual(again.used, 1);
+  assert.strictEqual(run.calls[1].resume, false);
+});
+
+test('reaching the question limit closes the session and deletes its transcript', async () => {
+  const { asker, run, forgotten, lines } = lifecycle([msg('ok')]);
+  let id = null;
+  for (let n = 1; n <= MAX_QUESTIONS; n++) id = (await q(asker, { conversationId: id })).conversationId;
+  assert.strictEqual(asker.sessions().length, 0);
+  assert.deepStrictEqual(forgotten, [run.calls[0].sessionId]);
+  assert.ok(lines.some((l) => /aberta/.test(l)) && lines.some((l) => /fechada \(limite de 5 perguntas\) apos 5 pergunta/.test(l)));
+});
+
+test('the player can end a conversation; a wrong or busy id closes nothing', async () => {
+  const { asker, forgotten } = lifecycle([msg('ok')]);
+  const a = await q(asker);
+  assert.strictEqual(asker.close('nao-existe'), false);
+  assert.strictEqual(asker.close(undefined), false);
+  assert.strictEqual(asker.close(a.conversationId), true);
+  assert.strictEqual(asker.close(a.conversationId), false);
+  assert.strictEqual(forgotten.length, 1);
+  assert.strictEqual(asker.sessions().length, 0);
+});
+
+test('a conversation that is answering is never swept or closed under it', async () => {
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  const base = lifecycle([msg('ok')]);
+  const slowRun = async (o) => { await gate; return base.run(o); };
+  slowRun.forget = base.run.forget; slowRun.pids = () => [4242];
+  const asker = createAsk({ run: slowRun, systemPrompt: 'SYS', now: () => base.clock.t });
+  const pending = q(asker);
+  await new Promise((r) => setImmediate(r));
+  base.clock.t += 60 * 60 * 1000; asker.sweep();
+  assert.deepStrictEqual(asker.sessions().map((s) => s.answering), [true]);
+  release();
+  assert.strictEqual((await pending).used, 1);
+});
+
+test('the registry file lists every open session without any question text', async () => {
+  const { asker, file } = lifecycle([msg('resposta secreta')]);
+  await q(asker, { question: 'pergunta secreta do jogador' });
+  await q(asker, { ip: '2.2.2.2', question: 'outra pergunta secreta' });
+  const reg = file();
+  assert.strictEqual(reg.open.length, 2);
+  assert.deepStrictEqual(Object.keys(reg.open[0]).sort(), ['answering', 'closesAt', 'costUsd', 'id', 'lastAt', 'openedAt', 'questions']);
+  assert.doesNotMatch(JSON.stringify(reg), /secreta|1\.1\.1\.1|2\.2\.2\.2/);
+  assert.ok(reg.open.every((s) => s.id.length === 8));        // a prefix: the file cannot be used to resume a conversation
+});
+
+test('runner: forget deletes only that session transcript, and never follows a crafted id', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'askhome-'));
+  const cwd = path.join(home, 'app', 'state', 'ask-cwd');
+  const dir = path.join(home, '.claude', 'projects', cwd.replace(/[^A-Za-z0-9]/g, '-'));
+  fs.mkdirSync(dir, { recursive: true });
+  const a = '11111111-1111-4111-8111-111111111111', b = '22222222-2222-4222-8222-222222222222';
+  for (const f of [a + '.jsonl', b + '.jsonl', 'keep.txt']) fs.writeFileSync(path.join(dir, f), 'x');
+  fs.writeFileSync(path.join(home, 'outside.jsonl'), 'x');
+  const oldHome = process.env.HOME; process.env.HOME = home;
+  try {
+    const run = createCliRunner({ bin: '/x/claude', cwd, spawnImpl: () => { throw new Error('not used'); } });
+    run.forget('../../../outside'); run.forget('../' + a); run.forget(''); run.forget(null);
+    assert.deepStrictEqual(fs.readdirSync(dir).sort(), [a + '.jsonl', b + '.jsonl', 'keep.txt'].sort());
+    assert.ok(fs.existsSync(path.join(home, 'outside.jsonl')));
+    run.forget(a);
+    assert.deepStrictEqual(fs.readdirSync(dir).sort(), [b + '.jsonl', 'keep.txt']);
+    assert.strictEqual(run.forgetAll(), 1);
+    assert.deepStrictEqual(fs.readdirSync(dir), ['keep.txt']);
+  } finally { process.env.HOME = oldHome; }
+});
+
+test('runner: tracks live processes and killAll stops them', async () => {
+  const { impl, seen } = fakeSpawn([init(['WebSearch'])], { exitAfter: false });
+  const run = createCliRunner({ bin: '/x/claude', cwd: os.tmpdir(), spawnImpl: (...a) => { const c = impl(...a); c.pid = 777; return c; } });
+  const p = run({ sessionId: 'S', prompt: 'p', systemPrompt: 's', onEvent() {} });
+  assert.deepStrictEqual(run.pids(), [777]);
+  run.killAll();
+  await assert.rejects(p, code('claude'));
+  assert.strictEqual(seen.killed, true);
+  assert.deepStrictEqual(run.pids(), []);
+});
+
+test('the system prompt restricts the subject to Terraria and this server', () => {
+  const a = buildSystemPrompt({ worldName: 'W', worldSize: 'Small', difficulty: 'Expert', maxPlayers: 8, mods: [] });
+  assert.match(a, /LIMITE DE ASSUNTO: você só fala de Terraria, tModLoader, mods de Terraria e deste servidor/);
+  assert.match(a, /mesmo se o jogador insistir/);
+});

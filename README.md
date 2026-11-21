@@ -276,6 +276,10 @@ reports and kills it if anything else is there.
 
 - A conversation keeps its context for **5 questions**, then the server drops it and the next
   question starts a new session with an empty context.
+- **No session stays open**: the process exits after each answer; the conversation closes after 15
+  idle minutes, at the 5-question limit or when the player clicks "Nova conversa", and its transcript
+  is deleted. `state/ask-sessions.json` lists what is open right now (no question text), and the
+  app log records every open and close. A restart wipes any leftover transcript.
 - Gated by the world password (same lockout as the day/night button), one question at a time per
   IP, 15 per hour per IP, 120 per day overall, and a budget of US$ 4 per day and US$ 60 per month
   from the cost each session reports (`ASK_DAILY_USD`, `ASK_MONTHLY_USD`; on a subscription that
