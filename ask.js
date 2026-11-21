@@ -48,7 +48,14 @@ const FILE_TOOLS = ['Read', 'Glob', 'Grep'];
 const FETCH_DOMAINS = ['terraria.wiki.gg', '*.wiki.gg', 'terraria.fandom.com', '*.fandom.com',
   'steamcommunity.com', 'store.steampowered.com', 'forums.terraria.org', 'github.com', 'raw.githubusercontent.com',
   'tmodloader.github.io', 'reddit.com', '*.reddit.com'];
-const PERMISSION_RULES = ['WebSearch'].concat(FILE_TOOLS,FETCH_DOMAINS.map((d) => 'WebFetch(domain:' + d + ')')).join(',');
+// Two independent locks keep the file tools inside the data room (each was tested live
+// on its own): the allow rules below name the room's path, so a read anywhere else needs
+// an approval nobody gives (dontAsk), and --restricted confines the tools to the cwd.
+// A bare "Read" rule is never used: it would approve reads of the whole disk.
+function permissionRules(room) {
+  const scope = '(/' + room + '/**)';     // "//abs/path/**" is the absolute-path form of a rule
+  return ['WebSearch'].concat(FILE_TOOLS.map((t) => t + scope), FETCH_DOMAINS.map((d) => 'WebFetch(domain:' + d + ')')).join(',');
+}
 const RUN_TIMEOUT_MS = 240000;
 const RUN_BUDGET_USD = 1.2;            // hard stop for one question (--max-budget-usd)
 const ABORT_USD = 0.03;                // budget charge for a run that ended without a cost
@@ -233,10 +240,13 @@ function createCliRunner({ bin, cwd, spawnImpl = spawn }) {
   function run({ sessionId, resume, prompt, systemPrompt, onEvent, signal }) {
     return new Promise((resolve, reject) => {
       fs.mkdirSync(cwd, { recursive: true });
+      const room = fs.realpathSync(cwd);
+      // a path with a comma or parenthesis would break the rule syntax: refuse to run
+      if (!/^\/[^,()*?\[\]{}]+$/.test(room)) return reject(new AskError('ferramentas'));
       const args = [
         '-p', '--model', MODEL,
         '--safe-mode', '--restricted', '--strict-mcp-config', '--disable-slash-commands',
-        '--tools', ALLOWED_TOOLS.join(','), '--allowedTools', PERMISSION_RULES,
+        '--tools', ALLOWED_TOOLS.join(','), '--allowedTools', permissionRules(room),
         '--permission-mode', 'dontAsk', '--permission-prompts', 'none',
         '--max-budget-usd', String(RUN_BUDGET_USD),
         '--system-prompt', systemPrompt,
@@ -245,7 +255,7 @@ function createCliRunner({ bin, cwd, spawnImpl = spawn }) {
       ];
       // A minimal environment: none of this server's variables reach the session.
       const env = { HOME: process.env.HOME || '', USER: process.env.USER || '', PATH: '/usr/bin:/bin:/usr/sbin:/sbin', LANG: 'en_US.UTF-8' };
-      const child = spawnImpl(bin, args, { cwd, env, stdio: ['pipe', 'pipe', 'ignore'] });
+      const child = spawnImpl(bin, args, { cwd: room, env, stdio: ['pipe', 'pipe', 'ignore'] });
       children.add(child);
       let buf = '', done = false, wroteText = false, turnHasText = false, result = null;
       const finish = (err, value) => {
@@ -503,6 +513,6 @@ function scrubber(secrets) {
 
 module.exports = {
   createAsk, createCliRunner, buildSystemPrompt, buildServerState, AskError,
-  writeDataRoom, scrubber,
+  writeDataRoom, scrubber, permissionRules,
   MODEL, MAX_QUESTIONS, QUESTION_MAX, ALLOWED_TOOLS, FILE_TOOLS, FETCH_DOMAINS,
 };

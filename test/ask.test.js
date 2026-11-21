@@ -5,7 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { EventEmitter } = require('node:events');
-const { createAsk, createCliRunner, buildServerState, buildSystemPrompt, AskError, MAX_QUESTIONS, MODEL, ALLOWED_TOOLS, FILE_TOOLS, FETCH_DOMAINS, writeDataRoom, scrubber } = require('../ask');
+const { createAsk, createCliRunner, buildServerState, buildSystemPrompt, AskError, MAX_QUESTIONS, MODEL, ALLOWED_TOOLS, FILE_TOOLS, FETCH_DOMAINS, writeDataRoom, scrubber, permissionRules } = require('../ask');
 
 // A stand-in for the session runner: records every call and replays scripted replies.
 function fakeRun(replies) {
@@ -190,8 +190,12 @@ test('runner: the session gets only the web tools, safe mode, a bare environment
   assert.strictEqual(arg('--tools'), 'WebSearch,WebFetch,Read,Glob,Grep');
   // WebFetch runs on the host: it is only ever allowed per public domain, never bare
   const rules = arg('--allowedTools').split(',');
-  assert.deepStrictEqual(rules.slice(0, 4), ['WebSearch', 'Read', 'Glob', 'Grep']);
+  const room = fs.realpathSync(seen.options.cwd);
+  assert.strictEqual(rules[0], 'WebSearch');
+  // every file tool is allowed ONLY inside the data room, by absolute path
+  assert.deepStrictEqual(rules.slice(1, 4), ['Read', 'Glob', 'Grep'].map((t) => t + '(/' + room + '/**)'));
   assert.ok(rules.length > 4 && rules.slice(4).every((r) => /^WebFetch\(domain:(\*\.)?[a-z0-9-]+(\.[a-z0-9-]+)+\)$/.test(r)), rules.join(' '));
+  for (const bare of ['Read', 'Glob', 'Grep', 'Read(/**)', 'Read(**)']) assert.ok(!rules.includes(bare), bare);
   assert.ok(!rules.includes('WebFetch'));
   assert.ok(FETCH_DOMAINS.every((d) => !/^\*?\.?(localhost|local|internal|\d+)/.test(d) && !/^\*$|^\*\.[a-z]+$/.test(d)));
   assert.strictEqual(arg('--model'), MODEL);
@@ -448,4 +452,15 @@ test('scrubber: the world password and IP addresses never reach the data room', 
   assert.match(out, /pass=\[removido\] ip \[ip\] e \[ip\]:7777/);
   assert.match(out, / ab /);                       // too short to be treated as a secret
   assert.strictEqual(scrubber()('nada'), 'nada');
+});
+
+test('runner: refuses to start when the room path could break the permission rule syntax', async () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'askbad-'));
+  let spawned = false;
+  for (const name of ['a,b', 'a(b)', 'a*b']) {
+    const run = createCliRunner({ bin: '/x/claude', cwd: path.join(base, name), spawnImpl: () => { spawned = true; throw new Error('must not spawn'); } });
+    await assert.rejects(run({ sessionId: 'S', prompt: 'p', systemPrompt: 's', onEvent() {} }), code('ferramentas'));
+  }
+  assert.strictEqual(spawned, false);
+  assert.match(permissionRules('/srv/room'), /^WebSearch,Read\(\/\/srv\/room\/\*\*\),Glob\(\/\/srv\/room\/\*\*\),Grep\(\/\/srv\/room\/\*\*\),WebFetch\(domain:/);
 });
