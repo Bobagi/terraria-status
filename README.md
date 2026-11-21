@@ -2,7 +2,7 @@
 
 **English** · [Português](README.pt-BR.md)
 
-A **zero-dependency Node.js status page** for a modded Terraria (**tModLoader**) dedicated
+A **Node.js status page with no required dependencies** for a modded Terraria (**tModLoader**) dedicated
 server running in Docker. It shows, live and auto-refreshing:
 
 - 🟢 Server **online/offline**, uptime, restarts
@@ -260,6 +260,28 @@ the feed is simply off. Rebuild and redeploy the `StatusExport` mod (0.10+), the
 
 `GET /api/fights` returns the last 20 boss kills (per-player damage, DPS and deaths) for the site.
 
+
+## Ask Claude (optional)
+
+A question box on the page: players ask about the game, the server's mods or whether an idea is
+possible, and Claude answers (in Portuguese) with the server's live state as context and web search
+when it needs it. It is a **read-only analyst**: the request to the model carries only Anthropic's
+hosted web search and web fetch tools, so nothing it writes can reach the console, the files or
+Docker.
+
+- Model: `claude-sonnet-5-5`. Billed to **your** Anthropic Console API key.
+- A conversation keeps its context for **5 questions**, then the server drops it and the next
+  question starts from an empty context.
+- Gated by the world password (same lockout as the day/night button), one question at a time per
+  IP, 15 per hour per IP, 120 per day overall, and a **budget of US$ 2 per day and US$ 30 per
+  month** estimated from the usage the API reports (`ASK_DAILY_USD`, `ASK_MONTHLY_USD`). The spend
+  counter lives in `state/ask-usage.json`.
+- Questions and answers are never logged, only duration, question number and estimated cost.
+
+Setup: `npm install` (this is the only npm package the app uses, `@anthropic-ai/sdk`, and only this
+feature needs it), create an API key at <https://platform.claude.com/> and put it in
+`anthropic-api.key` next to `server.js` (git-ignored, `chmod 600`) or in `ANTHROPIC_API_KEY`, then
+restart the app. With no key or no package the box stays hidden and everything else works.
 
 ## World map (`/mapa/`)
 

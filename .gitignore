@@ -16,3 +16,6 @@ public/mapa/
 # Discord webhook secret + feed state (never commit)
 discord-webhook.url
 state/
+
+# Anthropic API key for the "Pergunte ao Claude" box (never commit)
+anthropic-api.key

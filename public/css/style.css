@@ -398,6 +398,75 @@ body{
   background:rgba(255,255,255,.05);border:1px solid #3a3560;display:inline-flex;gap:6px;align-items:center}
 .wlive .wp.prog{color:var(--purple);border-color:rgba(197,139,255,.35)}
 .wlive .wp.warn{background:rgba(255,84,112,.16);color:var(--red);border-color:rgba(255,84,112,.45)}
+.timectl{margin-top:12px;padding-top:11px;border-top:1px dashed #4b4a86;display:flex;flex-direction:column;gap:8px}
+.timectl .tc-label{font-size:.72rem;font-weight:800;color:var(--gray);text-shadow:var(--shadow);text-transform:uppercase;letter-spacing:.06em}
+.timectl .tc-row{display:flex;gap:8px;flex-wrap:wrap;align-items:stretch}
+.timectl .tc-pass{flex:1 1 150px;min-width:0;display:flex;align-items:center;gap:7px;padding:0 10px;
+  background:rgba(0,0,0,.28);border:2px solid #3a3560;border-radius:9px;color:var(--yellow)}
+.timectl .tc-pass:focus-within{border-color:var(--yellow)}
+.timectl .tc-pass input{flex:1;min-width:0;background:none;border:0;outline:0;color:#fff;font:inherit;font-size:.85rem;padding:9px 0}
+.timectl .tc-pass input::placeholder{color:#8b87b8}
+.timectl .tc-btn{cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:7px;font:inherit;font-weight:800;font-size:.85rem;
+  text-shadow:var(--shadow);border-radius:9px;padding:9px 14px;border:2px solid;
+  box-shadow:inset 0 2px 0 rgba(255,255,255,.12),0 3px 0 rgba(0,0,0,.4);transition:transform .08s,border-color .15s,opacity .15s}
+.timectl .tc-btn.day{color:#2a1c00;text-shadow:none;background:linear-gradient(180deg,#ffd86a,#e9a92c);border-color:#fff0b3}
+.timectl .tc-btn.night{color:#eef0ff;background:linear-gradient(180deg,#3d3f8f,#25265e);border-color:#8aa9ff}
+.timectl .tc-btn:hover{transform:translateY(-1px)}
+.timectl .tc-btn:active{transform:translateY(2px);box-shadow:inset 0 2px 0 rgba(255,255,255,.1),0 1px 0 rgba(0,0,0,.4)}
+.timectl .tc-btn:disabled{opacity:.55;cursor:wait;transform:none}
+.timectl .tc-btn:focus-visible{outline:2px solid #fff;outline-offset:2px}
+/* narrow: the password takes its own line and the two buttons split the next one evenly */
+@media (max-width:480px){.timectl .tc-pass{flex-basis:100%}.timectl .tc-btn{flex:1 1 0}}
+.timectl .tc-msg{margin:0;font-size:.75rem;min-height:1.1em;color:var(--gray);text-shadow:var(--shadow)}
+.timectl .tc-msg.ok{color:var(--green)}
+.timectl .tc-msg.err{color:var(--red)}
+
+/* ---- ask Claude ---- */
+.ask-log{display:flex;flex-direction:column;gap:10px;max-height:60vh;overflow-y:auto;overscroll-behavior:contain;margin:4px 0 12px;padding-right:2px}
+.ask-log:empty{display:none}
+.ask-msg{max-width:min(100%,760px);padding:10px 13px;border-radius:12px;border:2px solid #3a3560;font-size:.92rem;overflow-wrap:anywhere}
+.ask-msg.q{align-self:flex-end;background:rgba(138,169,255,.14);border-color:rgba(138,169,255,.45);white-space:pre-wrap}
+.ask-msg.a{align-self:flex-start;background:rgba(0,0,0,.26)}
+.ask-msg.a>:first-child{margin-top:0}.ask-msg.a>:last-child{margin-bottom:0}
+.ask-msg p,.ask-msg ul,.ask-msg ol{margin:.5em 0}
+.ask-msg ul,.ask-msg ol{padding-left:1.3em}
+.ask-msg h4{margin:.8em 0 .3em;font-size:.95rem;color:var(--yellow)}
+.ask-msg code{font-family:ui-monospace,Consolas,monospace;font-size:.86em;background:rgba(255,255,255,.09);border-radius:4px;padding:1px 5px}
+.ask-msg pre{margin:.5em 0;padding:9px 11px;background:rgba(0,0,0,.35);border-radius:8px;overflow-x:auto}
+.ask-msg pre code{background:none;padding:0}
+.ask-msg a{color:var(--cyan)}
+.ask-msg .ask-status{display:inline-flex;align-items:center;gap:8px;color:var(--gray);font-size:.82rem}
+.ask-msg .ask-status::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--purple);animation:askPulse 1s ease-in-out infinite}
+@keyframes askPulse{50%{opacity:.25;transform:scale(.7)}}
+.ask-src{margin-top:.7em;padding-top:.5em;border-top:1px dashed #4b4a86;font-size:.78rem;color:var(--gray)}
+.ask-src a{display:inline-block;margin:2px 10px 2px 0}
+.ask-end{align-self:center;font-size:.78rem;color:var(--gray);text-align:center;padding:4px 10px}
+.ask-form{display:flex;flex-direction:column;gap:8px}
+.ask-form textarea{width:100%;resize:vertical;min-height:58px;max-height:220px;background:rgba(0,0,0,.28);border:2px solid #3a3560;border-radius:9px;
+  color:#fff;font:inherit;font-size:.92rem;padding:9px 11px;outline:0}
+.ask-form textarea:focus{border-color:var(--purple)}
+.ask-form textarea::placeholder{color:#8b87b8}
+.ask-form textarea:disabled{opacity:.55}
+.ask-row{display:flex;gap:8px;flex-wrap:wrap;align-items:stretch}
+/* same look as the day/night password field, so it reads as the same password */
+.ask-row .tc-pass{flex:0 1 220px;min-width:0;display:flex;align-items:center;gap:7px;padding:0 10px;background:rgba(0,0,0,.28);border:2px solid #3a3560;border-radius:9px;color:var(--yellow)}
+.ask-row .tc-pass:focus-within{border-color:var(--yellow)}
+.ask-row .tc-pass input{flex:1;min-width:0;background:none;border:0;outline:0;color:#fff;font:inherit;font-size:.85rem;padding:9px 0}
+.ask-row .tc-pass input::placeholder{color:#8b87b8}
+.ask-count{flex:1 1 auto;align-self:center;text-align:right;font-size:.78rem;font-weight:700;color:var(--gray);text-shadow:var(--shadow)}
+.ask-new,.ask-send{cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:7px;font:inherit;font-weight:800;font-size:.85rem;
+  text-shadow:var(--shadow);border-radius:9px;padding:9px 14px;border:2px solid;
+  box-shadow:inset 0 2px 0 rgba(255,255,255,.12),0 3px 0 rgba(0,0,0,.4);transition:transform .08s,opacity .15s}
+.ask-send{color:#fff;background:linear-gradient(180deg,#8a5fd6,#5b3aa6);border-color:#d9bcff}
+.ask-new{color:var(--ink);background:rgba(255,255,255,.07);border-color:#6b64b8}
+.ask-new:hover,.ask-send:hover{transform:translateY(-1px)}
+.ask-new:active,.ask-send:active{transform:translateY(2px);box-shadow:inset 0 2px 0 rgba(255,255,255,.1),0 1px 0 rgba(0,0,0,.4)}
+.ask-send:disabled{opacity:.55;cursor:wait;transform:none}
+.ask-new:focus-visible,.ask-send:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.ask-form .tc-msg{margin:0;font-size:.75rem;min-height:1.1em;color:var(--gray);text-shadow:var(--shadow)}
+.ask-form .tc-msg.err{color:var(--red)}
+.ask-form .tc-msg:empty{display:none}
+@media (max-width:560px){.ask-row .tc-pass{flex-basis:100%}.ask-count{text-align:left}.ask-send{flex:1 1 0}}
 
 footer{margin-top:32px;text-align:center;color:var(--gray);font-size:.78rem;text-shadow:var(--shadow)}
 footer .live{display:inline-flex;align-items:center;gap:7px}

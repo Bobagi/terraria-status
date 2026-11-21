@@ -391,6 +391,7 @@
     if(d.world&&d.world.name)$('worldName').textContent=d.world.name;
     $('lastSave').textContent=d.world.lastSaveAt?fmtAgo(d.world.lastSaveAt):'-';
     var s=d.server||{};
+    askSetEnabled(d.ask);
     $('ver').textContent=s.tmodloaderVersion?('v'+s.tmodloaderVersion):'-';
     var badge=$('verBadge'),warn=$('staleWarn');
     if(s.upToDate===true){badge.hidden=false;badge.className='vbadge ok';badge.replaceChildren(icon('check'),'atualizado');warn.hidden=true;}
@@ -419,10 +420,11 @@
     if(!mbox.childElementCount&&d.mods){
       d.mods.forEach(function(m){
         var a=document.createElement('a');
-        a.className='mod';a.href='https://steamcommunity.com/sharedfiles/filedetails/?id='+m.id;
+        a.className='mod';a.href=m.local?m.href:'https://steamcommunity.com/sharedfiles/filedetails/?id='+m.id;
         a.target='_blank';a.rel='noopener';a.style.setProperty('--mc','var(--'+m.rarity+')');
-        a.innerHTML='<div class="mn"><span></span><span class="ext">Workshop <svg class="ic" aria-hidden="true"><use href="/icons/icons.svg#external-link"/></svg></span></div>'+
-          '<div class="md"></div><div class="mid">ID '+m.id+'</div>';
+        // Local mods (ours, not on the Workshop) come from the server itself on join.
+        a.innerHTML='<div class="mn"><span></span><span class="ext">'+(m.local?'Código':'Workshop')+' <svg class="ic" aria-hidden="true"><use href="/icons/icons.svg#external-link"/></svg></span></div>'+
+          '<div class="md"></div><div class="mid">'+(m.local?'Baixa sozinho ao entrar':'ID '+m.id)+'</div>';
         a.querySelector('.mn span').textContent=m.name;
         a.querySelector('.md').textContent=m.desc;
         mbox.appendChild(a);
@@ -564,6 +566,193 @@
 
   // relative "updated" refresh
   setInterval(function(){$('updated').textContent=fmtAgo(lastUpdated);},1000);
+
+  // day/night button: POST /api/time with the world password (checked server-side).
+  // The password is kept in this browser after it works once, so players type it once.
+  (function(){
+    var form=$('timeCtl'),pass=$('timePass'),msg=$('timeMsg');
+    if(!form)return;
+    var KEY='tmodTimePass';
+    try{pass.value=localStorage.getItem(KEY)||'';}catch(e){}
+    function say(t,cls){msg.textContent=t;msg.className='tc-msg'+(cls?' '+cls:'');}
+    var btns=form.querySelectorAll('.tc-btn');
+    form.addEventListener('submit',function(ev){
+      ev.preventDefault();
+      var mode=(ev.submitter&&ev.submitter.value)||'night';
+      btns.forEach(function(b){b.disabled=true;});
+      say(mode==='day'?'Fazendo amanhecer...':'Fazendo anoitecer...');
+      fetch('/api/time',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({mode:mode,password:pass.value})})
+        .then(function(r){return r.json().catch(function(){return{};}).then(function(j){return{status:r.status,j:j};});})
+        .then(function(x){
+          var j=x.j||{};
+          if(x.status===200){
+            try{localStorage.setItem(KEY,pass.value);}catch(e){}
+            say(mode==='day'?'Pronto, amanheceu no servidor.':'Pronto, anoiteceu no servidor.','ok');
+            skySeeded=false;setTimeout(tick,4000);
+          }else if(j.error==='senha'){
+            try{localStorage.removeItem(KEY);}catch(e){}
+            say('Senha errada.'+(j.left==null?'':j.left===1?' Resta 1 tentativa.':' Restam '+j.left+' tentativas.'),'err');
+          }else if(j.error==='bloqueado'){say('Muitas senhas erradas. Tente de novo em 15 minutos.','err');}
+          else if(j.error==='espera'){say('Calma: o tempo acabou de mudar. Tente em '+j.retrySec+' s.','err');}
+          else if(j.error==='desligado'){say('O botão está desligado no servidor.','err');}
+          else{say('Não deu para falar com o servidor. Tente de novo.','err');}
+        })
+        .catch(function(){say('Sem conexão com o site. Tente de novo.','err');})
+        .then(function(){btns.forEach(function(b){b.disabled=false;});});
+    });
+  })();
+
+  // ---- "Pergunte ao Claude": POST /api/ask, answer streamed as server-sent events.
+  // The server enforces everything (password, 5 questions per conversation, limits);
+  // this only draws it. The answer is model text: rendered with DOM nodes and
+  // textContent only, never innerHTML, and links are limited to http(s).
+  var askSetEnabled=function(){};
+  (function(){
+    var panel=$('askPanel'),form=$('askForm'),log=$('askLog'),text=$('askText'),pass=$('askPass'),
+        msg=$('askMsg'),count=$('askCount'),send=$('askSend'),fresh=$('askNew');
+    if(!panel)return;
+    var KEY='tmodTimePass',convId=null,used=0,max=5,closed=false,busy=false;
+    try{pass.value=localStorage.getItem(KEY)||'';}catch(e){}
+    askSetEnabled=function(a){
+      var on=!!(a&&a.enabled);if(panel.hidden===on)panel.hidden=!on;
+      if(a&&a.maxQuestions&&!used){max=a.maxQuestions;$('askMax').textContent=max;}
+    };
+    function say(t,cls){msg.textContent=t||'';msg.className='tc-msg'+(cls?' '+cls:'');}
+    function paint(){
+      count.textContent=used?('Pergunta '+used+' de '+max):'';
+      fresh.hidden=!used;
+      text.disabled=busy||closed;send.disabled=busy||closed;
+      text.placeholder=closed?'Conversa encerrada. Clique em "Nova conversa" para perguntar de novo.':text.getAttribute('data-ph');
+    }
+    text.setAttribute('data-ph',text.placeholder);
+
+    // inline markdown: `code`, **bold**, *italic*, [label](http...) and bare URLs
+    function inline(parent,src){
+      var re=/`([^`\n]+)`|\*\*([^*\n]+)\*\*|\*([^*\s][^*\n]*)\*|\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<>)\]]+)/g,last=0,m;
+      while((m=re.exec(src))){
+        if(m.index>last)parent.appendChild(document.createTextNode(src.slice(last,m.index)));
+        if(m[1]!=null)parent.appendChild(el('code',null,m[1]));
+        else if(m[2]!=null)inline(parent.appendChild(el('b')),m[2]);
+        else if(m[3]!=null)inline(parent.appendChild(el('i')),m[3]);
+        else parent.appendChild(link(m[5]||m[6],m[4]||m[6]));
+        last=re.lastIndex;
+      }
+      if(last<src.length)parent.appendChild(document.createTextNode(src.slice(last)));
+    }
+    function link(url,label){
+      var a=el('a',null,label);
+      if(/^https?:\/\//i.test(url)){a.href=url;a.target='_blank';a.rel='noopener noreferrer nofollow';}
+      return a;
+    }
+    function markdown(box,src){
+      box.textContent='';
+      var lines=src.replace(/\r/g,'').split('\n'),para=[],list=null,code=null;
+      function flush(){if(para.length){inline(box.appendChild(el('p')),para.join(' '));para=[];}}
+      for(var i=0;i<lines.length;i++){
+        var ln=lines[i],m;
+        if(code){if(/^\s*```/.test(ln)){code=null;}else{code.textContent+=(code.textContent?'\n':'')+ln;}continue;}
+        if(/^\s*```/.test(ln)){flush();list=null;code=box.appendChild(el('pre')).appendChild(el('code'));continue;}
+        if((m=/^\s*#{1,6}\s+(.*)$/.exec(ln))){flush();list=null;inline(box.appendChild(el('h4')),m[1]);continue;}
+        if((m=/^\s*(?:[-*•]|(\d+)[.)])\s+(.*)$/.exec(ln))){
+          flush();var tag=m[1]?'ol':'ul';
+          if(!list||list.tagName.toLowerCase()!==tag){list=box.appendChild(el(tag));if(m[1])list.start=parseInt(m[1],10);}
+          inline(list.appendChild(el('li')),m[2]);continue;
+        }
+        if(!ln.trim()){flush();list=null;continue;}
+        if(list&&/^\s{2,}\S/.test(ln)&&list.lastChild){inline(list.lastChild,' '+ln.trim());continue;}
+        list=null;para.push(ln.trim());
+      }
+      flush();
+    }
+
+    function bubble(cls){var b=el('div','ask-msg '+cls);log.appendChild(b);return b;}
+    function toEnd(){log.scrollTop=log.scrollHeight;}
+    var STATUS={think:'Pensando...',search:'Pesquisando na internet...',fetch:'Lendo uma página...'};
+    var ERR={
+      curta:'Escreva a pergunta.',longa:'Pergunta longa demais (até 800 caracteres).',
+      ocupado:'Espere a resposta anterior terminar.',fila:'Tem gente demais perguntando agora. Tente em um minuto.',
+      desligado:'As perguntas estão desligadas no servidor.',bloqueado:'Muitas senhas erradas. Tente de novo em 15 minutos.',
+      recusa:'O Claude não quis responder essa. Tente reformular.',demorou:'A pesquisa demorou demais. Tente uma pergunta mais direta.',
+      claude:'O Claude não respondeu agora. Tente de novo em instantes.'
+    };
+    function errText(j){
+      if(j.error==='senha')return 'Senha errada.'+(j.left==null?'':j.left===1?' Resta 1 tentativa.':' Restam '+j.left+' tentativas.');
+      if(j.error==='ritmo')return 'Você já perguntou bastante nesta hora. Volte em '+Math.max(1,Math.ceil((j.retrySec||60)/60))+' min.';
+      if(j.error==='orcamento')return j.scope==='mes'?'A cota de perguntas deste mês acabou.':'A cota de perguntas de hoje acabou. Volta amanhã.';
+      return ERR[j.error]||'Não deu para falar com o servidor. Tente de novo.';
+    }
+
+    function reset(){convId=null;used=0;closed=false;log.textContent='';say('');paint();text.focus();}
+    fresh.addEventListener('click',function(){if(!busy)reset();});
+    text.addEventListener('keydown',function(ev){
+      if(ev.key==='Enter'&&!ev.shiftKey&&!ev.isComposing){ev.preventDefault();if(form.requestSubmit)form.requestSubmit();else send.click();}
+    });
+
+    form.addEventListener('submit',function(ev){
+      ev.preventDefault();
+      var q=text.value.trim();
+      if(busy||closed||!q)return;
+      busy=true;say('');paint();
+      var qBox=bubble('q');qBox.textContent=q;
+      var box=bubble('a'),status=el('span','ask-status',STATUS.think),answer='',raf=0,ok=false;
+      box.appendChild(status);toEnd();
+      function draw(){raf=0;var stick=log.scrollHeight-log.scrollTop-log.clientHeight<60;markdown(box,answer);if(status)box.appendChild(status);if(stick)toEnd();}
+      function setStatus(t){if(!t){if(status&&status.parentNode)status.parentNode.removeChild(status);status=null;return;}if(!status)status=el('span','ask-status');status.textContent=t;box.appendChild(status);}
+      function fail(j){
+        setStatus(null);
+        if(!answer){log.removeChild(box);log.removeChild(qBox);text.value=q;}
+        if(j.error==='senha'){try{localStorage.removeItem(KEY);}catch(e){}pass.focus();}
+        say(errText(j),'err');
+      }
+      function onEvent(name,d){
+        if(name==='status'){setStatus(STATUS[d.kind]||STATUS.think);}
+        else if(name==='delta'){answer+=d.text;if(status)status.textContent='Escrevendo...';if(!raf)raf=requestAnimationFrame(draw);}
+        else if(name==='done'){
+          ok=true;setStatus(null);if(raf){cancelAnimationFrame(raf);}markdown(box,answer||'(sem resposta)');
+          if(d.truncated)box.appendChild(el('p','ask-end','A resposta foi cortada por tamanho.'));
+          if(d.sources&&d.sources.length){
+            var src=el('div','ask-src','Fontes: ');
+            d.sources.forEach(function(s){if(/^https?:\/\//i.test(s.url))src.appendChild(link(s.url,s.title||s.url));});
+            box.appendChild(src);
+          }
+          convId=d.conversationId||null;used=d.used;max=d.max;closed=!!d.closed;
+          if(closed)log.appendChild(el('div','ask-end','Conversa encerrada: '+max+' de '+max+' perguntas. A próxima começa do zero, sem lembrar desta.'));
+          try{localStorage.setItem(KEY,pass.value);}catch(e){}
+          var tp=$('timePass');if(tp&&!tp.value)tp.value=pass.value;
+          text.value='';toEnd();
+        }
+        else if(name==='error'){ok=true;fail(d);}
+      }
+      fetch('/api/ask',{method:'POST',headers:{'content-type':'application/json'},
+        body:JSON.stringify({password:pass.value,question:q,conversationId:convId})})
+        .then(function(r){
+          if(!/^text\/event-stream/i.test(r.headers.get('content-type')||'')){
+            return r.json().catch(function(){return{};}).then(function(j){ok=true;fail(j||{});});
+          }
+          var reader=r.body.getReader(),dec=new TextDecoder(),buf='';
+          function pump(){
+            return reader.read().then(function(x){
+              buf+=dec.decode(x.value||new Uint8Array(0),{stream:!x.done});
+              var at;
+              while((at=buf.indexOf('\n\n'))>=0){
+                var chunk=buf.slice(0,at),name='message',data='';buf=buf.slice(at+2);
+                chunk.split('\n').forEach(function(l){if(l.indexOf('event: ')===0)name=l.slice(7);else if(l.indexOf('data: ')===0)data+=l.slice(6);});
+                if(data){try{onEvent(name,JSON.parse(data));}catch(e){}}
+              }
+              if(!x.done)return pump();
+            });
+          }
+          return pump();
+        })
+        .catch(function(){})
+        .then(function(){
+          // the stream ended without a done/error event: the connection dropped
+          if(!ok){setStatus(null);if(answer){box.appendChild(el('p','ask-end','A conexão caiu no meio da resposta.'));}else{fail({});}}
+          busy=false;paint();if(!closed)text.focus();
+        });
+    });
+    paint();
+  })();
 
   tick();
   setInterval(tick,5000);

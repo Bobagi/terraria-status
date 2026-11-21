@@ -94,11 +94,42 @@
           <li><span class="fk">tModLoader</span><span class="fv" style="font-size:.8rem"><span id="ver">-</span> <span id="verBadge" class="vbadge" hidden></span></span></li>
         </ul>
         <div class="wlive" id="wlive" hidden></div>
+        <form class="timectl" id="timeCtl" autocomplete="on">
+          <span class="tc-label">Mudar o tempo agora</span>
+          <div class="tc-row">
+            <label class="tc-pass"><svg class="ic" aria-hidden="true"><use href="/icons/icons.svg#lock"/></svg><span class="sr-only">Senha do servidor</span>
+              <input id="timePass" type="password" name="password" autocomplete="current-password" placeholder="Senha do servidor" maxlength="128" required></label>
+            <button class="tc-btn day" type="submit" value="day"><svg class="ic" aria-hidden="true"><use href="/icons/icons.svg#sun"/></svg>Dia</button>
+            <button class="tc-btn night" type="submit" value="night"><svg class="ic" aria-hidden="true"><use href="/icons/icons.svg#moon"/></svg>Noite</button>
+          </div>
+          <p class="tc-msg" id="timeMsg" role="status" aria-live="polite"></p>
+        </form>
         <a class="map-btn" href="/mapa/"><svg class="ic" aria-hidden="true"><use href="/icons/icons.svg#map"/></svg>Ver mapa do mundo</a>
         <div class="stale-warn" id="staleWarn" hidden>
           <svg class="ic warn-ic" aria-hidden="true"><use href="/icons/icons.svg#triangle-alert"/></svg>
           <span><b>Servidor desatualizado.</b> A versão <span id="latestVer" style="font-family:ui-monospace,Consolas,monospace"></span> do tModLoader já saiu; enquanto o servidor não atualiza, quem estiver na versão nova da Steam não consegue entrar. Ele se atualiza sozinho no próximo ciclo (diário).</span>
         </div>
+      </section>
+    </div>
+
+    <!-- ask Claude (read-only analyst; hidden until the server says it is on) -->
+    <div class="col-12" id="askPanel" hidden>
+      <section class="panel">
+        <h2 class="panel-title hud"><span class="sec-ic" style="color:var(--purple)"><svg class="ic" aria-hidden="true"><use href="/icons/icons.svg#sparkle"/></svg></span>Pergunte ao Claude</h2>
+        <p class="note">Tire dúvidas sobre o jogo, os mods daqui ou se uma ideia é possível. Ele conhece o estado do servidor e pesquisa na internet, mas <b>só responde</b>: não mexe em nada no jogo. Cada conversa vai até <span id="askMax">5</span> perguntas.</p>
+        <div class="ask-log" id="askLog" role="log" aria-live="polite" aria-label="Conversa com o Claude"></div>
+        <form class="ask-form" id="askForm" autocomplete="on">
+          <label class="sr-only" for="askText">Sua pergunta</label>
+          <textarea id="askText" name="question" rows="2" maxlength="800" placeholder="Ex.: qual a melhor arma mágica antes do Plantera? Dá para ter um mod de pesca automática?" required></textarea>
+          <div class="ask-row">
+            <label class="tc-pass ask-pass"><svg class="ic" aria-hidden="true"><use href="/icons/icons.svg#lock"/></svg><span class="sr-only">Senha do servidor</span>
+              <input id="askPass" type="password" name="password" autocomplete="current-password" placeholder="Senha do servidor" maxlength="128" required></label>
+            <span class="ask-count" id="askCount"></span>
+            <button class="ask-new" id="askNew" type="button" hidden>Nova conversa</button>
+            <button class="tc-btn ask-send" id="askSend" type="submit"><svg class="ic" aria-hidden="true"><use href="/icons/icons.svg#message-square"/></svg>Perguntar</button>
+          </div>
+          <p class="tc-msg" id="askMsg" role="status" aria-live="polite"></p>
+        </form>
       </section>
     </div>
 

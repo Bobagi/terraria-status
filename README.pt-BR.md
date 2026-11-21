@@ -19,7 +19,7 @@ Exemplo no ar: **https://terraria.bobagi.space**
 ![Screenshot](docs/screenshot.png)
 
 Feito como companheiro do
-**[guia Terraria tModLoader Ubuntu Server](https://github.com/Bobagi/Terraria-tModLoader-Ubuntu-Server)** —
+**[guia Terraria tModLoader Ubuntu Server](https://github.com/Bobagi/Terraria-tModLoader-Ubuntu-Server)**:
 siga o guia primeiro pra ter o servidor rodando.
 
 ## Como funciona
@@ -30,7 +30,7 @@ jogadores ──HTTPS──▶ nginx ──▶ Node (127.0.0.1:3063) ──docke
                                └─ polling: docker stats/inspect · inject "playing" · du
 ```
 
-- Um único `server.js` (zero pacotes npm) consulta o Docker em timers e mantém um snapshot
+- Um único `server.js` (nenhum pacote npm obrigatório) consulta o Docker em timers e mantém um snapshot
   JSON em cache; o navegador consulta `GET /api/status` a cada 5 s.
 - Os jogadores online vêm do console do servidor: `docker exec <container> inject "playing"`
   e a resposta é lida com `tmux capture-pane` (a imagem JACOBSMILE roda o console num tmux).
@@ -213,6 +213,29 @@ URL o feed fica desligado. Recompile e reinstale o mod `StatusExport` (0.10+) e 
 
 `GET /api/fights` devolve as últimas 20 mortes de boss (dano, DPS e mortes por jogador) para o site.
 
+
+## Pergunte ao Claude (opcional)
+
+Uma caixa de perguntas na página: os jogadores perguntam sobre o jogo, os mods do servidor ou se uma
+ideia é possível, e o Claude responde com o estado ao vivo do servidor como contexto e pesquisa na
+internet quando precisa. Ele é um **analista somente leitura**: a requisição ao modelo leva apenas as
+ferramentas de busca e leitura de páginas hospedadas pela Anthropic, então nada do que ele escreve
+alcança o console, os arquivos ou o Docker.
+
+- Modelo: `claude-sonnet-5-5`. Cobrado na **sua** chave de API do Console da Anthropic.
+- Uma conversa guarda o contexto por **5 perguntas**; depois o servidor descarta e a próxima
+  pergunta começa do zero.
+- Protegido pela senha do mundo (mesmo bloqueio do botão de dia/noite), uma pergunta por vez por
+  IP, 15 por hora por IP, 120 por dia no total e um **orçamento de US$ 2 por dia e US$ 30 por mês**
+  estimado pelo consumo que a API informa (`ASK_DAILY_USD`, `ASK_MONTHLY_USD`). O contador fica em
+  `state/ask-usage.json`.
+- Perguntas e respostas nunca vão para o log, só duração, número da pergunta e custo estimado.
+
+Configuração: `npm install` (é o único pacote npm do app, `@anthropic-ai/sdk`, e só esta função
+precisa dele), crie uma chave de API em <https://platform.claude.com/> e coloque em
+`anthropic-api.key` ao lado do `server.js` (ignorado pelo git, `chmod 600`) ou em
+`ANTHROPIC_API_KEY`, e reinicie o app. Sem chave ou sem o pacote a caixa fica escondida e o resto
+funciona igual.
 
 ## Mapa do mundo (`/mapa/`)
 

@@ -21,6 +21,7 @@ const { parsePlaying, NAME_MAX } = require('./console-players');
 const { sanitizeModBosses, pickLive } = require('./world-extras');
 const { parseEvents, recentKills } = require('./fight-events');
 const { createFeed } = require('./discord-feed');
+const askLib = require('./ask');
 
 // ---- deploy config (override via environment; defaults match bobagi.space) --
 const PORT = parseInt(process.env.STATUS_PORT || '3063', 10);
@@ -35,6 +36,10 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 // Optional: written by the companion server-side mod (see optional-serverside-mod/).
 // If present & fresh, per-player character stats appear in the site's player modal.
 const STATS_FILE = process.env.TMOD_STATS_FILE || path.join(DATA_DIR, 'playerstats.json');
+// The world password (TMOD_PASS=... in the tmodloader .env) gates the day/night
+// button: players already have it to join. Read server-side only, never sent out.
+// No file or no TMOD_PASS = the button is off.
+const PASS_FILE = process.env.TMOD_PASS_FILE || path.join(DATA_DIR, '..', '..', '.env');
 // The mod rewrites the file every ~3 s while anyone is online. Newer than this, it
 // is the live truth about who is connected.
 const STATS_FRESH_MS = 15000;
@@ -56,6 +61,9 @@ const MODS = [
   { id: '2815540735', name: "Fargo's Souls Mod", rarity: 'purple', desc: 'Encantamentos, Souls e bosses novos. O Eternity Mode é opcional: só liga com o item Mutant\'s Gift.' },
   { id: '3222493606', name: 'Luminance', rarity: 'gray', desc: 'Biblioteca de suporte: o Fargo\'s Souls precisa dela (instala junto).' },
   { id: '2812377597', name: 'No Pylon Restrictions', rarity: 'cyan', desc: 'Permite mais de um Pylon de cada bioma, já que o mundo dobrou. O resto segue como no jogo normal: NPCs por perto, bioma certo e alcance.' },
+  // Our own mod, published on the Workshop (Bobagi/InfernoAura).
+  { id: '3834360329', name: 'Inferno Aura', rarity: 'orange',
+    desc: 'Feito para este servidor: troca o anel gigante da Poção do Inferno por uma aura de fogo em volta do personagem. Só muda o visual, o dano é o mesmo.' },
 ];
 
 const WORLD = {
@@ -107,6 +115,8 @@ let snapshot = {
   world: Object.assign({ lastSaveAt: null, live: null, progress: null, tiles: null }, WORLD),
   server: SERVER,
   mods: MODS,
+  // "Pergunte ao Claude" box: on only when an API key is configured (see ask.js).
+  ask: { enabled: false, maxQuestions: askLib.MAX_QUESTIONS, questionMax: askLib.QUESTION_MAX },
 };
 
 // Last complete copy of the world, for the /mapa/ viewer (the browser parses it).
@@ -421,7 +431,166 @@ function serveStatic(req, res) {
   });
 }
 
+// ---- day/night button ------------------------------------------------------
+// POST /api/time {"mode":"day"|"night","password":"..."}. The mode only picks one
+// of two fixed console commands (dawn / dusk); nothing from the request reaches
+// the console. Guards: JSON-only body (a cross-site HTML form can't send it), a
+// 1 KB body cap, a timing-safe password check, a lockout per IP after failed
+// passwords and a short global cooldown so the sky can't be strobed.
+const TIME_COMMANDS = { day: 'dawn', night: 'dusk' };
+const TIME_COOLDOWN_MS = 15000;
+const FAIL_WINDOW_MS = 15 * 60 * 1000;
+const FAIL_LIMIT = 5;
+const GLOBAL_FAIL_LIMIT = 30; // across all IPs: caps a brute force spread over many addresses
+let globalFails = [];
+const failsByIp = new Map(); // ip -> [timestamps]
+let lastTimeChange = 0;
+
+function worldPassword() {
+  try {
+    const m = /^\s*TMOD_PASS\s*=\s*(.*)$/m.exec(fs.readFileSync(PASS_FILE, 'utf8'));
+    const v = m ? m[1].trim().replace(/^(['"])(.*)\1$/, '$2') : '';
+    return v || null;
+  } catch (_) { return null; }
+}
+
+function sameSecret(a, b) {
+  const h = (x) => crypto.createHash('sha256').update(String(x)).digest();
+  return crypto.timingSafeEqual(h(a), h(b));
+}
+
+// The site only listens on 127.0.0.1 behind the Cloudflare tunnel, so this header
+// can only come from cloudflared.
+function clientIp(req) {
+  return String(req.headers['cf-connecting-ip'] || req.socket.remoteAddress || '?').slice(0, 64);
+}
+
+function recentFails(ip, now) {
+  const list = (failsByIp.get(ip) || []).filter((t) => now - t < FAIL_WINDOW_MS);
+  if (list.length) failsByIp.set(ip, list); else failsByIp.delete(ip);
+  return list;
+}
+
+function sendJson(res, code, obj) {
+  res.writeHead(code, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+  res.end(JSON.stringify(obj));
+}
+
+// Reads a small JSON body and checks the world password, with the lockout shared by
+// every password-gated endpoint. Calls next(data, ip) only for a correct password;
+// every other case is answered here.
+function withPassword(req, res, maxBody, next) {
+  if (req.method !== 'POST') { res.writeHead(405, { allow: 'POST' }); return res.end(); }
+  if (!/^application\/json\b/i.test(req.headers['content-type'] || '')) return sendJson(res, 415, { error: 'json' });
+  const ip = clientIp(req);
+  let body = '', tooBig = false;
+  req.setEncoding('utf8');
+  req.on('data', (c) => { body += c; if (body.length > maxBody) { tooBig = true; req.destroy(); } });
+  req.on('end', () => {
+    if (tooBig) return;
+    const now = Date.now();
+    globalFails = globalFails.filter((t) => now - t < FAIL_WINDOW_MS);
+    if (globalFails.length >= GLOBAL_FAIL_LIMIT || recentFails(ip, now).length >= FAIL_LIMIT) return sendJson(res, 429, { error: 'bloqueado', retrySec: Math.ceil(FAIL_WINDOW_MS / 1000) });
+    let data;
+    try { data = JSON.parse(body); } catch (_) { return sendJson(res, 400, { error: 'json' }); }
+    if (!data || typeof data !== 'object') return sendJson(res, 400, { error: 'json' });
+    const password = typeof data.password === 'string' ? data.password : '';
+    const real = worldPassword();
+    if (!real) return sendJson(res, 503, { error: 'desligado' });
+    if (!password || !sameSecret(password, real)) {
+      const list = recentFails(ip, now); list.push(now); failsByIp.set(ip, list);
+      globalFails.push(now);
+      return sendJson(res, 403, { error: 'senha', left: Math.max(0, FAIL_LIMIT - list.length) });
+    }
+    failsByIp.delete(ip);
+    Promise.resolve(next(data, ip)).catch(() => { if (!res.headersSent) sendJson(res, 500, { error: 'servidor' }); else res.end(); });
+  });
+}
+
+function handleTime(req, res) {
+  withPassword(req, res, 1024, async (data) => {
+    const mode = typeof data.mode === 'string' ? data.mode : '';
+    if (!Object.prototype.hasOwnProperty.call(TIME_COMMANDS, mode)) return sendJson(res, 400, { error: 'modo' });
+    const now = Date.now();
+    const wait = lastTimeChange + TIME_COOLDOWN_MS - now;
+    if (wait > 0) return sendJson(res, 429, { error: 'espera', retrySec: Math.ceil(wait / 1000) });
+    lastTimeChange = now;
+    const { err } = await run('docker', ['exec', CONTAINER, 'inject', TIME_COMMANDS[mode]]);
+    if (err) { lastTimeChange = 0; return sendJson(res, 502, { error: 'servidor' }); }
+    await run('docker', ['exec', CONTAINER, 'inject', 'say [site] ' + (mode === 'day' ? 'Amanheceu' : 'Anoiteceu') + ' pelo botao do terraria.bobagi.space']);
+    sendJson(res, 200, { ok: true, mode });
+  });
+}
+
+// ---- "Pergunte ao Claude" ----------------------------------------------------
+// POST /api/ask {"password","question","conversationId"?}. Same password gate as the
+// day/night button. The answer streams back as server-sent events:
+//   event: status {kind}   the model is thinking / searching / reading a page
+//   event: delta  {text}   a piece of the answer
+//   event: done   {conversationId, used, max, closed, sources}
+//   event: error  {error}
+// The model gets no tool that can reach this host (see ask.js): it only answers.
+const ASK_HTTP = { curta: 400, longa: 400, ritmo: 429, ocupado: 429, fila: 429, orcamento: 429 };
+let asker = null;
+function startAsk() {
+  const apiKey = askLib.readApiKey(__dirname);
+  if (!apiKey) return;
+  let Anthropic;
+  try { Anthropic = require('@anthropic-ai/sdk'); } catch (_) { console.log('ask: @anthropic-ai/sdk is not installed (npm install), box disabled'); return; }
+  asker = askLib.createAsk({
+    client: new Anthropic({ apiKey, baseURL: process.env.ANTHROPIC_BASE_URL || undefined, maxRetries: 1, timeout: 90000 }),
+    systemPrompt: askLib.buildSystemPrompt({ worldName: WORLD.name, worldSize: WORLD.size, difficulty: WORLD.difficulty, maxPlayers: WORLD.maxPlayers, mods: MODS }),
+    stateFile: path.join(__dirname, 'state', 'ask-usage.json'),
+    limits: {
+      dailyUsd: parseFloat(process.env.ASK_DAILY_USD || '') || undefined,
+      monthlyUsd: parseFloat(process.env.ASK_MONTHLY_USD || '') || undefined,
+    },
+  });
+  snapshot.ask.enabled = true;
+}
+
+function handleAsk(req, res) {
+  withPassword(req, res, 4096, async (data, ip) => {
+    if (!asker) return sendJson(res, 503, { error: 'desligado' });
+    const abort = new AbortController();
+    let open = false;
+    const send = (event, obj) => { if (open && !res.writableEnded) res.write('event: ' + event + '\ndata: ' + JSON.stringify(obj) + '\n\n'); };
+    res.on('close', () => abort.abort());
+    // Headers go out on the first event, so a limit hit before the model runs is
+    // still a plain JSON error with its own status code.
+    const begin = () => {
+      if (open) return;
+      open = true;
+      res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store, no-transform', 'x-accel-buffering': 'no', 'x-content-type-options': 'nosniff' });
+    };
+    const started = Date.now();
+    try {
+      const out = await asker.ask({
+        ip,
+        conversationId: typeof data.conversationId === 'string' ? data.conversationId.slice(0, 64) : null,
+        question: data.question,
+        serverState: askLib.buildServerState(snapshot),
+        signal: abort.signal,
+        onEvent: (ev) => { begin(); send(ev.type, ev.type === 'delta' ? { text: ev.text } : { kind: ev.kind }); },
+      });
+      begin();
+      // Never the question or the answer: only sizes and cost reach the log.
+      console.log(`ask: ok ${Math.round((Date.now() - started) / 1000)}s pergunta ${out.used}/${out.max} ~$${out.costUsd.toFixed(4)} fontes=${out.sources.length}`);
+      send('done', { conversationId: out.conversationId, used: out.used, max: out.max, closed: out.closed, truncated: out.truncated, sources: out.sources });
+      res.end();
+    } catch (e) {
+      const code = e instanceof askLib.AskError ? e.code : (abort.signal.aborted ? 'cancelado' : 'claude');
+      if (code === 'claude') console.log('ask: upstream error ' + (e && e.status ? e.status : '') + ' ' + String(e && e.name));
+      if (!open) return sendJson(res, ASK_HTTP[code] || 502, Object.assign({ error: code }, e.extra));
+      send('error', Object.assign({ error: code }, e.extra));
+      res.end();
+    }
+  });
+}
+
 http.createServer((req, res) => {
+  if (req.url === '/api/time') return handleTime(req, res);
+  if (req.url === '/api/ask') return handleAsk(req, res);
   if (req.url === '/api/status' || req.url.startsWith('/api/status?')) {
     res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'access-control-allow-origin': '*' });
     return res.end(JSON.stringify(snapshot));
@@ -458,6 +627,7 @@ http.createServer((req, res) => {
   loadModBossIcons();
   fastLoop(); diskLoop(); worldLoop();
   feed.start();
+  startAsk();
   setTimeout(playerLoop, 3000); // let the first inspect land so `online` is known
 
 });
