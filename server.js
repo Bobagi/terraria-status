@@ -532,6 +532,12 @@ function handleTime(req, res) {
 // The session has web search only, nothing that can reach this host (see ask.js).
 const ASK_HTTP = { curta: 400, longa: 400, ritmo: 429, ocupado: 429, fila: 429, orcamento: 429 };
 let asker = null, askRun = null;
+// Curated notes about this server's mods (ask-knowledge.md), appended to the system
+// prompt. Edit the file and restart to teach the analyst something new.
+function askKnowledge() {
+  try { return fs.readFileSync(path.join(__dirname, 'ask-knowledge.md'), 'utf8'); } catch (_) { return ''; }
+}
+
 function startAsk() {
   const bin = process.env.ASK_CLAUDE_BIN;
   if (!bin) return;
@@ -541,7 +547,7 @@ function startAsk() {
   if (stale) console.log('ask: ' + stale + ' transcricao(oes) antiga(s) apagada(s)');
   asker = askLib.createAsk({
     run: askRun,
-    systemPrompt: askLib.buildSystemPrompt({ worldName: WORLD.name, worldSize: WORLD.size, difficulty: WORLD.difficulty, maxPlayers: WORLD.maxPlayers, mods: MODS }),
+    systemPrompt: askLib.buildSystemPrompt({ worldName: WORLD.name, worldSize: WORLD.size, difficulty: WORLD.difficulty, maxPlayers: WORLD.maxPlayers, mods: MODS, knowledge: askKnowledge() }),
     stateFile: path.join(__dirname, 'state', 'ask-usage.json'),
     sessionsFile: path.join(__dirname, 'state', 'ask-sessions.json'),
     log: (line) => console.log('ask: ' + line),
