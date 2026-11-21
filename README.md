@@ -268,7 +268,7 @@ possible, and Claude answers (in Portuguese) with the server's live state as con
 when it needs it. Each question runs a headless **Claude Code** session on the host (`claude -p`,
 model `sonnet`), on the login of whoever owns the machine.
 
-It is a **read-only analyst**. The session starts with only the `WebSearch` and `WebFetch` tools (WebFetch runs on the host, so it is
+It is a **read-only analyst**. The session starts with only web search, page reading and read-only file tools (WebFetch runs on the host, so it is
 limited to a list of public game sites, `FETCH_DOMAINS` in `ask.js`), no
 MCP servers, skills, hooks or `CLAUDE.md` (`--safe-mode`), in an empty working directory: no shell,
 no file access, nothing that reaches the game console. The app checks the tool list the session
@@ -280,6 +280,12 @@ reports and kills it if anything else is there.
   idle minutes, at the 5-question limit or when the player clicks "Nova conversa", and its transcript
   is deleted. `state/ask-sessions.json` lists what is open right now (no question text), and the
   app log records every open and close. A restart wipes any leftover transcript.
+- **Data room**: before each question the app writes copies of the game data into the session's
+  working directory (online players and their gear, world progress, the boss fight log with damage
+  per player, enabled mods and their configs). The session reads them with `Read`/`Grep`/`Glob`,
+  confined to that folder by `--restricted` (without it those tools open any file on the host).
+  Nothing secret goes in, and every file is scrubbed of the world password and of IP addresses.
+- `ASK_MODEL` picks the model (default `sonnet`).
 - `ask-knowledge.md` holds curated notes about the server's mods and is appended to the system
   prompt: edit it and restart to teach the analyst. The prompt also tells it how to research (open
   the wiki pages directly, start from the index pages, use the wiki's own search on a 404).

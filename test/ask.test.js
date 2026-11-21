@@ -5,7 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { EventEmitter } = require('node:events');
-const { createAsk, createCliRunner, buildServerState, buildSystemPrompt, AskError, MAX_QUESTIONS, MODEL, ALLOWED_TOOLS, FETCH_DOMAINS } = require('../ask');
+const { createAsk, createCliRunner, buildServerState, buildSystemPrompt, AskError, MAX_QUESTIONS, MODEL, ALLOWED_TOOLS, FILE_TOOLS, FETCH_DOMAINS, writeDataRoom, scrubber } = require('../ask');
 
 // A stand-in for the session runner: records every call and replays scripted replies.
 function fakeRun(replies) {
@@ -171,6 +171,7 @@ function fakeSpawn(lines, { exitAfter = true } = {}) {
   };
   return { impl, seen };
 }
+const WEB = ['WebFetch', 'WebSearch'];
 const init = (tools, mcp) => ({ type: 'system', subtype: 'init', tools, mcp_servers: mcp || [] });
 const ev = (event) => ({ type: 'stream_event', event });
 const runOnce = (spawnImpl, over) => {
@@ -186,35 +187,39 @@ test('runner: the session gets only the web tools, safe mode, a bare environment
   delete process.env.TMOD_SECRET_FOR_TEST;
   assert.deepStrictEqual(out, { text: 'oi', totalCostUsd: 0.04 });
   const arg = (name) => seen.args[seen.args.indexOf(name) + 1];
-  assert.strictEqual(arg('--tools'), 'WebSearch,WebFetch');
+  assert.strictEqual(arg('--tools'), 'WebSearch,WebFetch,Read,Glob,Grep');
   // WebFetch runs on the host: it is only ever allowed per public domain, never bare
   const rules = arg('--allowedTools').split(',');
-  assert.strictEqual(rules[0], 'WebSearch');
-  assert.ok(rules.length > 1 && rules.slice(1).every((r) => /^WebFetch\(domain:(\*\.)?[a-z0-9-]+(\.[a-z0-9-]+)+\)$/.test(r)), rules.join(' '));
+  assert.deepStrictEqual(rules.slice(0, 4), ['WebSearch', 'Read', 'Glob', 'Grep']);
+  assert.ok(rules.length > 4 && rules.slice(4).every((r) => /^WebFetch\(domain:(\*\.)?[a-z0-9-]+(\.[a-z0-9-]+)+\)$/.test(r)), rules.join(' '));
   assert.ok(!rules.includes('WebFetch'));
   assert.ok(FETCH_DOMAINS.every((d) => !/^\*?\.?(localhost|local|internal|\d+)/.test(d) && !/^\*$|^\*\.[a-z]+$/.test(d)));
   assert.strictEqual(arg('--model'), MODEL);
   assert.strictEqual(MODEL, 'sonnet');
   assert.strictEqual(arg('--permission-mode'), 'dontAsk');
   assert.strictEqual(arg('--session-id'), 'S1');
-  for (const flag of ['-p', '--safe-mode', '--strict-mcp-config', '--disable-slash-commands']) assert.ok(seen.args.includes(flag), flag);
+  // the file tools read ANY file of the machine unless --restricted confines them to the cwd
+  for (const flag of ['-p', '--safe-mode', '--restricted', '--strict-mcp-config', '--disable-slash-commands']) assert.ok(seen.args.includes(flag), flag);
   for (const bad of ['--dangerously-skip-permissions', '--allow-dangerously-skip-permissions', '--add-dir', '--mcp-config', '--resume']) assert.ok(!seen.args.includes(bad), bad);
   assert.ok(!seen.args.includes('pergunta'));               // the player's text is never an argument
   assert.strictEqual(seen.stdin, 'pergunta');
   assert.deepStrictEqual(Object.keys(seen.options.env).sort(), ['HOME', 'LANG', 'PATH', 'USER']);
-  assert.deepStrictEqual(ALLOWED_TOOLS, ['WebSearch', 'WebFetch']);
+  assert.deepStrictEqual(ALLOWED_TOOLS, ['WebSearch', 'WebFetch', 'Read', 'Glob', 'Grep']);
+  assert.deepStrictEqual(FILE_TOOLS, ['Read', 'Glob', 'Grep']);
 });
 
 test('runner: a resumed question uses --resume with the same locks', async () => {
   const { impl, seen } = fakeSpawn([init(['WebSearch']), { type: 'result', subtype: 'success', is_error: false, result: 'x', total_cost_usd: 1 }]);
   await runOnce(impl, { resume: true });
   assert.strictEqual(seen.args[seen.args.indexOf('--resume') + 1], 'S1');
-  assert.ok(!seen.args.includes('--session-id') && seen.args.includes('--safe-mode') && seen.args.includes('--tools'));
+  assert.ok(!seen.args.includes('--session-id') && seen.args.includes('--safe-mode') && seen.args.includes('--restricted') && seen.args.includes('--tools'));
 });
 
 for (const [name, first] of [
   ['a shell tool', init(['WebSearch', 'Bash'])],
-  ['a file tool', init(['Read', 'WebFetch'])],
+  ['a tool that writes files', init(['Read', 'Edit', 'WebFetch'])],
+  ['a tool that writes new files', init(['Write'])],
+  ['a subagent tool', init(['Read', 'Agent'])],
   ['an MCP server', init(['WebSearch'], [{ name: 'x', status: 'connected' }])],
   ['no tool list at all', { type: 'system', subtype: 'init' }],
 ]) {
@@ -419,4 +424,28 @@ test('the system prompt restricts the subject to Terraria and this server', () =
   const a = buildSystemPrompt({ worldName: 'W', worldSize: 'Small', difficulty: 'Expert', maxPlayers: 8, mods: [] });
   assert.match(a, /LIMITE DE ASSUNTO: você só fala de Terraria, tModLoader, mods de Terraria e deste servidor/);
   assert.match(a, /mesmo se o jogador insistir/);
+});
+
+test('data room: holds exactly what was written; stale files, symlinks and bad names are gone', () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'askroom-'));
+  const room = path.join(base, 'room');
+  fs.mkdirSync(path.join(room, 'old-dir'), { recursive: true });
+  fs.writeFileSync(path.join(base, 'secret.txt'), 'SEGREDO');
+  fs.writeFileSync(path.join(room, 'stale.json'), 'old');
+  fs.symlinkSync(path.join(base, 'secret.txt'), path.join(room, 'link.txt'));
+  const kept = writeDataRoom(room, { 'jogadores.json': '{"a":1}', 'LEIA-ME.md': 'x', '../fora.txt': 'no', '.oculto': 'no', 'sub/arquivo': 'no', 'num.json': 42 });
+  assert.deepStrictEqual(kept.sort(), ['LEIA-ME.md', 'jogadores.json']);
+  assert.deepStrictEqual(fs.readdirSync(room).sort(), ['LEIA-ME.md', 'jogadores.json']);
+  assert.ok(!fs.existsSync(path.join(base, 'fora.txt')));
+  assert.strictEqual(fs.readFileSync(path.join(base, 'secret.txt'), 'utf8'), 'SEGREDO');   // the link target is untouched
+  assert.ok(fs.readdirSync(room).every((f) => fs.lstatSync(path.join(room, f)).isFile()));
+});
+
+test('scrubber: the world password and IP addresses never reach the data room', () => {
+  const scrub = scrubber(['hunter2senha', null, 'ab']);
+  const out = scrub('pass=hunter2senha ip 192.168.1.229 e 150.230.85.106:7777 v2026.9.3.1 ab hunter2senha');
+  assert.doesNotMatch(out, /hunter2senha|192\.168|150\.230/);
+  assert.match(out, /pass=\[removido\] ip \[ip\] e \[ip\]:7777/);
+  assert.match(out, / ab /);                       // too short to be treated as a secret
+  assert.strictEqual(scrubber()('nada'), 'nada');
 });

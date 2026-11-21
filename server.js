@@ -542,7 +542,7 @@ function startAsk() {
   const bin = process.env.ASK_CLAUDE_BIN;
   if (!bin) return;
   try { fs.accessSync(bin, fs.constants.X_OK); } catch (_) { console.log('ask: ASK_CLAUDE_BIN is not an executable, box disabled'); return; }
-  askRun = askLib.createCliRunner({ bin, cwd: path.join(__dirname, 'state', 'ask-cwd') });
+  askRun = askLib.createCliRunner({ bin, cwd: ASK_ROOM });
   const stale = askRun.forgetAll();   // conversations do not survive a restart: drop their transcripts
   if (stale) console.log('ask: ' + stale + ' transcricao(oes) antiga(s) apagada(s)');
   asker = askLib.createAsk({
@@ -571,6 +571,72 @@ function freshSnapshot() {
   return Object.assign({}, snapshot, { players: Object.assign({}, snapshot.players, { list }) });
 }
 
+// ---- the analyst's data room ------------------------------------------------
+// Copies of game data written into the session's working directory before each
+// question, so the analyst reads the same facts the owner would look up. Nothing secret
+// goes in: no .env, no console log (it prints the password), no webhook, and every file
+// is scrubbed of the world password and of IP addresses on top of that.
+const ASK_ROOM = path.join(__dirname, 'state', 'ask-cwd');
+const MODS_DIR = path.join(DATA_DIR, 'Mods');
+const MODCONFIG_DIR = path.join(DATA_DIR, 'ModConfigs');
+function readTail(file, maxBytes) {
+  try {
+    const st = fs.statSync(file);
+    const from = Math.max(0, st.size - maxBytes);
+    const fd = fs.openSync(file, 'r');
+    try {
+      const buf = Buffer.alloc(st.size - from);
+      fs.readSync(fd, buf, 0, buf.length, from);
+      const text = buf.toString('utf8');
+      return from > 0 ? text.slice(text.indexOf('\n') + 1) : text;
+    } finally { fs.closeSync(fd); }
+  } catch (_) { return ''; }
+}
+function readSmall(file, maxBytes) {
+  try { return fs.statSync(file).size <= maxBytes ? fs.readFileSync(file, 'utf8') : ''; } catch (_) { return ''; }
+}
+function buildAskRoom() {
+  const scrub = askLib.scrubber([worldPassword()]);
+  const live = freshSnapshot();
+  const pretty = (v) => JSON.stringify(v, null, 1);
+  const files = {
+    'jogadores.json': pretty({ geradoEm: new Date().toISOString(), online: live.players.list.map((p) => Object.assign({ onlineHaSeg: p.onlineForSec }, p.stats || { name: p.name })) }),
+    'mundo.json': pretty({ servidorNoAr: live.online, mundo: live.world, tmodloader: live.server.tmodloaderVersion, terraria: live.server.terrariaVersion, noArHaSeg: live.container.uptimeSec }),
+    'mods.json': pretty({ ligados: (() => { try { return JSON.parse(readSmall(path.join(MODS_DIR, 'enabled.json'), 65536)); } catch (_) { return []; } })(), descricao: MODS }),
+    'lutas.jsonl': readTail(EVENTS_FILE, 400 * 1024),
+    'mortes.json': readSmall(path.join(DATA_DIR, 'playerdeaths.json'), 256 * 1024),
+    'notas.md': askKnowledge(),
+    'site.md': ASK_SITE_NOTES,
+  };
+  try {
+    for (const name of fs.readdirSync(MODCONFIG_DIR).filter((f) => /^[A-Za-z0-9_.-]+\.json$/.test(f)).slice(0, 30)) {
+      const text = readSmall(path.join(MODCONFIG_DIR, name), 128 * 1024);
+      if (text) files['config-' + name] = text;
+    }
+  } catch (_) { /* no mod configs */ }
+  for (const k of Object.keys(files)) { if (!files[k]) delete files[k]; else files[k] = scrub(files[k]); }
+  files['LEIA-ME.md'] = '# Dados do servidor (cópias somente leitura, refeitas a cada pergunta)\n\n'
+    + Object.keys(files).sort().map((k) => '- ' + k + ': ' + (ASK_ROOM_INDEX[k] || (k.startsWith('config-') ? 'configuração de um mod (nome do mod no nome do arquivo)' : 'dados do servidor'))).join('\n') + '\n';
+  askLib.writeDataRoom(ASK_ROOM, files);
+}
+const ASK_ROOM_INDEX = {
+  'jogadores.json': 'quem está online agora e tudo o que cada personagem carrega',
+  'mundo.json': 'progresso do mundo, bosses derrotados e que faltam, hora, eventos, versões',
+  'mods.json': 'mods ligados no servidor e o que cada um faz',
+  'lutas.jsonl': 'histórico de eventos, uma linha JSON cada: boss_kill e boss_wipe (dano por jogador, duração, mortes), death, invasões',
+  'mortes.json': 'total de mortes por jogador',
+  'notas.md': 'fatos já conferidos sobre os mods deste servidor',
+  'site.md': 'o que o site e o servidor oferecem, comandos do chat',
+};
+const ASK_SITE_NOTES = [
+  '# Site e servidor', '',
+  '- Site: terraria.bobagi.space. Mostra quem está online (clicar no nome abre os detalhes do personagem), CPU e memória, bosses derrotados, mods, o mapa do mundo em /mapa/ e um botão de dia/noite com a senha do servidor.',
+  '- Comandos do chat para jogadores: /ping, /playing, /roll, /p texto.',
+  '- Dar item, curar, teleportar e outros comandos de administração só existem no console do servidor, que só o dono (Gustavo) usa.',
+  '- O Discord do grupo recebe aviso de cada chefe derrotado com dano e DPS por jogador, e um ranking semanal.',
+  '- O servidor atualiza o tModLoader sozinho uma vez por dia.',
+].join('\n');
+
 function handleAsk(req, res) {
   withPassword(req, res, 4096, async (data, ip) => {
     if (!asker) return sendJson(res, 503, { error: 'desligado' });
@@ -589,6 +655,7 @@ function handleAsk(req, res) {
     };
     const started = Date.now();
     try {
+      try { buildAskRoom(); } catch (_) { /* the analyst still answers from the prompt state */ }
       const out = await asker.ask({
         ip,
         conversationId: typeof data.conversationId === 'string' ? data.conversationId.slice(0, 64) : null,
