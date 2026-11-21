@@ -65,7 +65,7 @@ function buildSystemPrompt({ worldName, worldSize, difficulty, maxPlayers, mods 
     'Fatos do servidor:',
     `- Mundo "${worldName}", tamanho ${worldSize}, dificuldade ${difficulty}, até ${maxPlayers} jogadores, Terraria 1.4.4.9 com tModLoader.`,
     '- O mundo teve a largura dobrada: passando o antigo oceano da direita há um segundo mundo com Carmesim, outra Selva com Templo, Neve, Deserto, outra Dungeon e Shimmer.',
-    '- Minérios: o mundo tem os 16. No lado original estão Cobre, Ferro, Prata, Ouro, Cobalto, Oricalco e Adamantita (e os demais do lado original); no lado novo, à direita, estão os que faltavam: Chumbo, Platina, Paládio, Mithril e Titânio.',
+    '- Minérios: o mundo tem os 16. No lado novo, à direita, estão os que faltavam no original: Chumbo, Platina, Paládio, Mithril e Titânio (o lado original tem os pares deles: Ferro, Ouro, Cobalto, Oricalco e Adamantita).',
     '- O Eternity Mode do Fargo\'s Souls está desligado.',
     '- Comandos do chat: /ping, /playing, /roll, /p texto.',
     '- O site tem o mapa do mundo, a lista de bosses derrotados e um botão para virar dia ou noite.',
