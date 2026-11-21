@@ -268,7 +268,8 @@ possible, and Claude answers (in Portuguese) with the server's live state as con
 when it needs it. Each question runs a headless **Claude Code** session on the host (`claude -p`,
 model `sonnet`), on the login of whoever owns the machine.
 
-It is a **read-only analyst**. The session starts with only the `WebSearch` and `WebFetch` tools, no
+It is a **read-only analyst**. The session starts with only the `WebSearch` and `WebFetch` tools (WebFetch runs on the host, so it is
+limited to a list of public game sites, `FETCH_DOMAINS` in `ask.js`), no
 MCP servers, skills, hooks or `CLAUDE.md` (`--safe-mode`), in an empty working directory: no shell,
 no file access, nothing that reaches the game console. The app checks the tool list the session
 reports and kills it if anything else is there.

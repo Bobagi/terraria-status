@@ -221,7 +221,8 @@ ideia é possível, e o Claude responde com o estado ao vivo do servidor como co
 internet quando precisa. Cada pergunta roda uma sessão do **Claude Code** sem interface na máquina
 (`claude -p`, modelo `sonnet`), no login de quem é dono dela.
 
-Ele é um **analista somente leitura**. A sessão sobe só com as ferramentas `WebSearch` e `WebFetch`,
+Ele é um **analista somente leitura**. A sessão sobe só com as ferramentas `WebSearch` e `WebFetch` (o WebFetch roda na máquina, então fica
+restrito a uma lista de sites públicos do jogo, `FETCH_DOMAINS` no `ask.js`),
 sem servidores MCP, skills, hooks ou `CLAUDE.md` (`--safe-mode`), numa pasta vazia: sem shell, sem
 acesso a arquivo, nada que alcance o console do jogo. O app confere a lista de ferramentas que a
 sessão informa e mata a sessão se aparecer qualquer outra.

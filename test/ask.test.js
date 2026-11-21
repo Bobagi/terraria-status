@@ -5,7 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { EventEmitter } = require('node:events');
-const { createAsk, createCliRunner, buildServerState, buildSystemPrompt, AskError, MAX_QUESTIONS, MODEL, ALLOWED_TOOLS } = require('../ask');
+const { createAsk, createCliRunner, buildServerState, buildSystemPrompt, AskError, MAX_QUESTIONS, MODEL, ALLOWED_TOOLS, FETCH_DOMAINS } = require('../ask');
 
 // A stand-in for the session runner: records every call and replays scripted replies.
 function fakeRun(replies) {
@@ -186,7 +186,12 @@ test('runner: the session gets only the web tools, safe mode, a bare environment
   assert.deepStrictEqual(out, { text: 'oi', totalCostUsd: 0.04 });
   const arg = (name) => seen.args[seen.args.indexOf(name) + 1];
   assert.strictEqual(arg('--tools'), 'WebSearch,WebFetch');
-  assert.strictEqual(arg('--allowedTools'), 'WebSearch,WebFetch');
+  // WebFetch runs on the host: it is only ever allowed per public domain, never bare
+  const rules = arg('--allowedTools').split(',');
+  assert.strictEqual(rules[0], 'WebSearch');
+  assert.ok(rules.length > 1 && rules.slice(1).every((r) => /^WebFetch\(domain:(\*\.)?[a-z0-9-]+(\.[a-z0-9-]+)+\)$/.test(r)), rules.join(' '));
+  assert.ok(!rules.includes('WebFetch'));
+  assert.ok(FETCH_DOMAINS.every((d) => !/^\*?\.?(localhost|local|internal|\d+)/.test(d) && !/^\*$|^\*\.[a-z]+$/.test(d)));
   assert.strictEqual(arg('--model'), MODEL);
   assert.strictEqual(MODEL, 'sonnet');
   assert.strictEqual(arg('--permission-mode'), 'dontAsk');

@@ -5,7 +5,7 @@
  *
  * Each question runs a headless Claude Code session on this host (`claude -p`), on the
  * owner's own Claude login. The session is started with ONLY the WebSearch and WebFetch
- * tools (--tools), no MCP servers, no skills, no hooks, no CLAUDE.md (--safe-mode), in
+ * tools (--tools), WebFetch limited to a list of public game sites, no MCP servers, no skills, no hooks, no CLAUDE.md (--safe-mode), in
  * an empty working directory: it has no shell, no file access and no way to reach the
  * game console. The runner checks the tool list the session reports and kills it if
  * anything else shows up. Player text is prompt content, nothing more.
@@ -32,6 +32,12 @@ const QUESTION_MAX = 800;
 const CONVERSATION_TTL_MS = 30 * 60 * 1000;
 const MAX_CONVERSATIONS = 40;
 const ALLOWED_TOOLS = ['WebSearch', 'WebFetch'];
+// WebFetch runs on THIS host, so it is limited to public game sites: without the list a
+// player could ask the session to open addresses on the home network (router, other
+// services on this machine). WebSearch runs on Anthropic's side and needs no list.
+const FETCH_DOMAINS = ['terraria.wiki.gg', '*.wiki.gg', 'terraria.fandom.com', '*.fandom.com',
+  'steamcommunity.com', 'forums.terraria.org', 'github.com', 'raw.githubusercontent.com'];
+const PERMISSION_RULES = ['WebSearch'].concat(FETCH_DOMAINS.map((d) => 'WebFetch(domain:' + d + ')')).join(',');
 const RUN_TIMEOUT_MS = 150000;
 const RUN_BUDGET_USD = 0.6;            // hard stop for one question (--max-budget-usd)
 const ABORT_USD = 0.03;                // budget charge for a run that ended without a cost
@@ -56,7 +62,7 @@ function buildSystemPrompt({ worldName, worldSize, difficulty, maxPlayers, mods 
   return [
     'Você é o Guia, o analista do servidor de Terraria (tModLoader) "' + worldName + '" em terraria.bobagi.space. Quem pergunta são os jogadores do servidor, um grupo de amigos.',
     '',
-    'Seu papel é SÓ analisar e responder. Você não executa nada: não tem acesso ao console, aos arquivos nem ao jogo (suas únicas ferramentas são pesquisar e ler páginas da internet), não dá item, não muda o tempo, não instala nem configura mod. Se pedirem uma ação, diga que você só responde perguntas e explique como o próprio jogador faz, ou diga que é algo para pedir ao dono do servidor (o Gustavo) quando depender de mudar o servidor.',
+    'Seu papel é SÓ analisar e responder. Você não executa nada: não tem acesso ao console, aos arquivos nem ao jogo (suas únicas ferramentas são pesquisar na internet e ler páginas de wikis e sites do jogo; outros endereços são bloqueados, então não tente abrir links que o jogador mandar), não dá item, não muda o tempo, não instala nem configura mod. Se pedirem uma ação, diga que você só responde perguntas e explique como o próprio jogador faz, ou diga que é algo para pedir ao dono do servidor (o Gustavo) quando depender de mudar o servidor.',
     '',
     'O que você responde: como fazer algo no jogo, onde achar ou como criar um item, estratégia de boss, builds, como um mod daqui funciona, e se uma ideia é possível (por exemplo "dá para ter tal mod?", "dá para mudar tal regra?"). Para ideias de mudança no servidor, diga se é viável, o que precisaria (mod pronto na Workshop, configuração, mod próprio) e os riscos, mas deixe claro que a decisão e a instalação são do dono.',
     '',
@@ -136,7 +142,7 @@ function createCliRunner({ bin, cwd, spawnImpl = spawn }) {
       const args = [
         '-p', '--model', MODEL,
         '--safe-mode', '--strict-mcp-config', '--disable-slash-commands',
-        '--tools', ALLOWED_TOOLS.join(','), '--allowedTools', ALLOWED_TOOLS.join(','),
+        '--tools', ALLOWED_TOOLS.join(','), '--allowedTools', PERMISSION_RULES,
         '--permission-mode', 'dontAsk', '--permission-prompts', 'none',
         '--max-budget-usd', String(RUN_BUDGET_USD),
         '--system-prompt', systemPrompt,
@@ -328,5 +334,5 @@ function createAsk({ run, systemPrompt, stateFile, limits, now = Date.now }) {
 
 module.exports = {
   createAsk, createCliRunner, buildSystemPrompt, buildServerState, AskError,
-  MODEL, MAX_QUESTIONS, QUESTION_MAX, ALLOWED_TOOLS,
+  MODEL, MAX_QUESTIONS, QUESTION_MAX, ALLOWED_TOOLS, FETCH_DOMAINS,
 };
