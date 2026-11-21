@@ -67,12 +67,13 @@ test('an unknown conversation id cannot resume or join a session', async () => {
   assert.match(run.calls[0].sessionId, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 });
 
-test('the server state is sent once per conversation, with the frozen system prompt', async () => {
+test('the current server state goes with every question, so a follow-up sees gear changes', async () => {
   const { asker, run } = setup([msg('ok')]);
-  const a = await q(asker, { serverState: 'Hardmode: sim' });
-  await q(asker, { serverState: 'Hardmode: sim', conversationId: a.conversationId, question: 'e depois?' });
-  assert.match(run.calls[0].prompt, /Hardmode: sim[\s\S]*como faço a Zenith\?/);
-  assert.strictEqual(run.calls[1].prompt, 'e depois?');
+  const a = await q(asker, { serverState: 'na mão: Picksaw' });
+  await q(asker, { serverState: 'na mão: Zenith', conversationId: a.conversationId, question: 've ai meus itens' });
+  assert.match(run.calls[0].prompt, /na mão: Picksaw[\s\S]*como faço a Zenith\?/);
+  assert.match(run.calls[1].prompt, /substitui o estado enviado antes[\s\S]*na mão: Zenith[\s\S]*ve ai meus itens/);
+  assert.doesNotMatch(run.calls[1].prompt, /Picksaw/);
   assert.strictEqual(run.calls[0].systemPrompt, 'SYS');
 });
 

@@ -548,6 +548,15 @@ function startAsk() {
   snapshot.ask.enabled = true;
 }
 
+// The snapshot's player stats are up to 25 s old (playerLoop). For a question the mod's
+// file is read again, so "what am I holding" matches what the player sees right now.
+function freshSnapshot() {
+  const mod = readModStats();
+  if (!mod) return snapshot;
+  const list = snapshot.players.list.map((p) => Object.assign({}, p, { stats: mod.byName[p.name] || p.stats }));
+  return Object.assign({}, snapshot, { players: Object.assign({}, snapshot.players, { list }) });
+}
+
 function handleAsk(req, res) {
   withPassword(req, res, 4096, async (data, ip) => {
     if (!asker) return sendJson(res, 503, { error: 'desligado' });
@@ -568,7 +577,7 @@ function handleAsk(req, res) {
         ip,
         conversationId: typeof data.conversationId === 'string' ? data.conversationId.slice(0, 64) : null,
         question: data.question,
-        serverState: askLib.buildServerState(snapshot),
+        serverState: askLib.buildServerState(freshSnapshot()),
         signal: abort.signal,
         onEvent: (ev) => { begin(); send(ev.type, ev.type === 'delta' ? { text: ev.text } : { kind: ev.kind }); },
       });
